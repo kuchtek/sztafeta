@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 import logging
+from flask import flash
 
 #----------------------- APP CONFIG -----------------------
 app = Flask(__name__)
@@ -15,7 +16,6 @@ app.logger.addHandler(logging.StreamHandler())
 app.logger.setLevel(logging.INFO)
 app.secret_key = "sekretny_klucz"
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
-
 load_dotenv()
 #--------------------- ENVIROMENT VARIABLES -----------------------
 URI = os.environ.get('URI')
@@ -31,7 +31,7 @@ STRAVA_REDIRECT_URI = f'{URI}/strava_callback'
 def inject_footer_data():
     return {
         'current_date': '2024',
-        'app_version': '0.1'
+        'app_version': '0.2'
     }
 #--------------------- HEJTO ROUTES -----------------------
 @app.route('/')
@@ -52,26 +52,59 @@ def login():
     )
     return redirect(auth_url)
 
+
 @app.route('/callback')
 def authorize():
-    authorization_code = request.args.get("code") or session.get("access_token")
+    authorization_code = request.args.get("code")
     if not authorization_code:
         raise Exception("Authorization code not provided", 400)
+    app.logger.info("Within /callback")
+    if 'access_token' in session:
+        return(redirect(url_for('fetch_athlete_activities')))
+
+    app.logger.info("Within /callback, generating authorization code")
+    
     try:
         app.logger.info("Getting hejto token")
-        token = get_hejto_token(
+        token,refresh_token = get_hejto_token(
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
             authorization_code=authorization_code
         )
-        app.logger.info("Got hejto token")
         session['access_token'] = token
-        session.permantent = True
+        session['refresh_token'] = refresh_token
+        session.permanent = True
         app.logger.info("Got hejto token and saved to session")
         return render_template('authorize_strava.html')
     except Exception:
         auth_url = generate_authorization_url()
         return redirect(auth_url)
+
+def refresh_session_token():
+    if 'refresh_token' in session:
+        try:
+            app.logger.info("Refreshing session token")
+            token, refresh_token = get_hejto_token(
+                client_id=CLIENT_ID,
+                client_secret=CLIENT_SECRET,
+                grant_type='refresh_token',
+                refresh_token=session['refresh_token']
+            )
+            app.logger.info("Got new session token")
+            session['access_token'] = token
+            session['refresh_token'] = refresh_token  
+            session.permanent = True
+            return True
+        except Exception as e:
+            app.logger.error("Failed to refresh session token: {}".format(e))
+    return False
+
+# @app.before_request
+# def check_session_token():
+#     if 'access_token' not in session or session['access_token'] is None:
+#         if not refresh_session_token():
+#             auth_url = generate_authorization_url()
+#             return redirect(auth_url), 302
 
 def generate_authorization_url():
     return (
@@ -97,7 +130,7 @@ def get_hejto_token(client_id, client_secret, authorization_code):
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code == 200:
         token_data = response.json()
-        return token_data.get('access_token')
+        return token_data.get('access_token'), token_data.get('refresh_token')
     else:
         app.logger.error("Something goes wrong")
         raise Exception(f"Failed to retrieve token: {response.status_code} {response.text}")
@@ -127,22 +160,35 @@ def fetch_posts():
         except Exception as e:
             return str(e), 400
     
-@app.route('/sztafeta')
-def fetch_athlete_activities():
+@app.route('/activity/<string:activity_type>')
+@app.route('/activity/')
+def fetch_athlete_activities(activity_type=None):
+    app.logger.info("Activity type: {}".format(activity_type))
     if 'access_token' not in session.keys():
         app.logger.error("Access token not found in session")
         print(session.keys())
         return redirect(url_for('login'))
+    if activity_type == None:
+        app.logger.info("nic tu nie ma")
+        return redirect('/athlete')
+    if activity_type not in ['sztafeta','rownik']:
+        return render_template("activities.html", error_message="Invalid activity type", activities=[])
     try:
         access_token = session.get('strava_access_token')
-        activities = get_strava_activities(access_token=access_token, per_page=10)
-        if activities==[]:
-            return render_template("activities.html", error_message="Invalid token", activities=activities)
+        activities = get_strava_activities(access_token=access_token, per_page=10, activity_type=activity_type)
         return render_template("activities.html", activities=activities)
     except Exception as error:
-        strava_auth_url = url_for('sztafeta')
+        strava_auth_url = url_for('activity')
         print("Error:", error)
         return render_template("activities.html", error_message=str(error), strava_auth_url=strava_auth_url)
+
+@app.route('/activity/sztafeta')
+def fetch_run_activities():
+    return fetch_athlete_activities('sztafeta')
+
+@app.route('/activity/rownik')
+def fetch_ride_activities():
+    return fetch_athlete_activities('rownik')
 
 def get_last_distance():
     url = 'https://api.hejto.pl/posts'
@@ -188,6 +234,12 @@ def redirect_hejto():
 @app.route('/process_activities', methods=["GET", "POST"])
 def process_activities():
     selected_ids = request.form.getlist('selected_activities')
+    if len(selected_ids) == 0:
+        flash("Zaznacz przynajmniej jedną aktywność", "danger")
+        return render_template('activities.html')
+    if len(selected_ids) == 1 and selected_ids[0] == '0':
+        flash("Dystans musi być większy niż 0", "danger")
+        return render_template('activities.html')
     # strava_activities = json.loads(session.get('strava_activities', '[]'))
     hejto_distance = get_last_distance()
     if hejto_distance is None:
@@ -215,12 +267,13 @@ def process_activities():
             except Exception as e:
                 return str(e)
         i=i+1
-    response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False)
-    if response.status_code == 201:
-        return redirect("/redirect")
-    else:
-        print(f"Failed to create post: {response.status_code} {response.text}")
-        raise Exception(f"Failed to create post: {response.status_code} {response.text}")
+    return render_template(url_for('activity'))
+    # response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False)
+    # if response.status_code == 201:
+    #     return redirect("/redirect")
+    # else:
+    #     print(f"Failed to create post: {response.status_code} {response.text}")
+    #     raise Exception(f"Failed to create post: {response.status_code} {response.text}")
 
 
 def upload_image(file):
@@ -267,10 +320,12 @@ def create_post(content, images=None, nsfw=False):
         raise
 
 
-def fetch_sztafeta_posts(access_token, limit=50):
+def fetch_community_posts(access_token, limit=50, community=None):
+    if community is None:
+        render_template("error.html", error_code=404, error_msg="Nie znaleziono strony")
     url = "https://api.hejto.pl/posts"
     params = {
-        "community": "Sztafeta",
+        "community": community,
         "limit": limit
     }
     headers = {
@@ -326,7 +381,7 @@ def extract_user_distances(posts):
 
 def aggregate_distances(user_distances):
     user_aggregated = defaultdict(lambda: {"week": 0.0, "month": 0.0, "year": 0.0, "week_count": 0, "month_count": 0, "year_count": 0, "week_mean": 0.0, "month_mean": 0.0, "year_mean": 0.0})
-    user_aggregated = defaultdict(lambda: {"week": 0.0, "month": 0.0, "year": 0.0})
+    # user_aggregated = defaultdict(lambda: {"week": 0.0, "month": 0.0, "year": 0.0})
     from datetime import datetime
     now = datetime.now().astimezone()  # Make `now` timezone-aware
     week_start = now - timedelta(days=now.weekday())
@@ -341,6 +396,9 @@ def aggregate_distances(user_distances):
         month_count = 0
         year_count = 0
         for activity in activities:
+            app.logger.info(activity)
+            if not isinstance(activity['distance'], list):
+                activity['distance'] = [activity['distance']]
             if activity["created_at"] >= week_start:
                 user_aggregated[username]["week"] += sum(activity["distance"])
                 week_total_distance += sum(activity["distance"])
@@ -378,20 +436,32 @@ def generate_ranking(user_aggregated):
     }
     return ranking
 
-@app.route("/ranking")
-def ranking():
+@app.route('/ranking/<string:community>')
+def ranking(community):
+    app.logger.info("Community: {}".format(community))
+    if community not in ['sztafeta', 'rownik']:
+        app.logger.error("Ranking not found")
+        return render_template('error.html', error_code=404)
     if 'access_token' not in session.keys():
         app.logger.error("Access token not found in session")
         print(session.keys())
         return redirect(url_for('login'))
-
+    if community=='rownik':
+        community='rowerowy-rownik'
     access_token = session['access_token']
-
     try:
-        sztafeta_posts = fetch_sztafeta_posts(access_token, limit=50)
+        sztafeta_posts = fetch_community_posts(access_token, limit=50, community=community)
+        app.logger.info("extracted posts")
+        app.logger.debug(sztafeta_posts)
         user_distances = extract_user_distances(sztafeta_posts)
+        app.logger.info("extracted distances")
+        app.logger.debug(user_distances)
         user_aggregated = aggregate_distances(user_distances)
+        app.logger.info("aggregated distances")
+        app.logger.debug(user_aggregated)
         rankings = generate_ranking(user_aggregated)
+        app.logger.info("generated rankings")
+        app.logger.debug(rankings)
                 # Prepare data for the chart
         monthly_data = defaultdict(float)
         weekly_data = defaultdict(float)
@@ -432,6 +502,7 @@ def ranking():
 
         return render_template('ranking.html', 
                                rankings=rankings,
+                               community=community,
                                monthly_labels=monthly_labels_json,
                                monthly_data=monthly_values_json,
                                weekly_labels=weekly_labels_json,
@@ -454,7 +525,7 @@ def strava_callback():
         try:
             strava_access_token = get_strava_token(code)
             session['strava_access_token'] = strava_access_token
-            return redirect('/sztafeta')  # Przekierowanie do endpointu, ktĂłry pobierze dane biegacza
+            return redirect('/athlete')  # Przekierowanie do endpointu, ktĂłry pobierze dane biegacza
         except Exception as e:
             return str(e), 400
     else:
@@ -523,7 +594,7 @@ def get_strava_athlete(access_token):
     else:
         raise Exception(f"Failed to retrieve athlete data: {response.status_code} {response.text}") 
     
-def get_strava_activities(access_token, per_page=10):
+def get_strava_activities(access_token, per_page=10,activity_type='sztafeta'):
     api_endpoint = 'https://www.strava.com/api/v3/athlete/activities'
     headers = {
         'Authorization': f'Bearer {access_token}'
@@ -531,53 +602,29 @@ def get_strava_activities(access_token, per_page=10):
     params = {
         'per_page': per_page
     }
+    activity_types = {
+        'sztafeta': 'Run',
+        'rownik': 'Ride'
+    }
     response = requests.get(api_endpoint, headers=headers, params=params)
     print("Getting activities")
     if response.status_code == 200:
         activities = response.json()
-        run_activities = [
+        filtered_activities = [
             {
                 'name': activity['name'],
                 'distance_km': round(activity['distance'] / 1000, 2),
                 'start_date': activity['start_date_local'][:10]
             }
             for activity in activities
-            if activity['type'] == 'Run'
+            if activity['type'] == activity_types[activity_type]
         ]
-        return run_activities
+        return filtered_activities
     elif response.status_code == 401:
         print("Invalid access token")
         return []
     else:
         raise Exception(f"Failed to retrieve activities: {response.status_code} {response.text}")
-            
-    # url = 'https://www.strava.com/api/v3/athlete/activities'
-    # headers = {
-    #     "Authorization": f"Bearer {access_token}"
-    # }
-    # params = {
-    #     "per_page": per_page
-    # }
-    # response = requests.get(url, headers=headers, params=params)
-
-    # if response.status_code == 200:
-    #     activities = response.json()
-    #     # Filtrowanie aktywnoĹ›ci do typu 'Run' i konwersja dystansu na kilometry
-    #     run_activities = [
-    #         {
-    #             "name": activity["name"],
-    #             "distance_km": round(activity["distance"] / 1000, 2),
-    #             "start_date": activity["start_date"]
-    #         }
-    #         for activity in activities if activity["type"] == "Run"
-    #     ]
-    #     session['strava_activities'] = json.dumps(run_activities)
-    #     return run_activities
-    # else:
-    #     return render_template('error.html', message=str("failed to retrieve activities")), 400
-
-
-# error handling
 
 # Custom error handler for 404 Not Found
 @app.errorhandler(400)

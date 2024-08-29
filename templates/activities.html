@@ -2,7 +2,20 @@
 {% extends "base.html" %}
 {% block title %}Aktywności - SztafetaStat{% endblock %}
 {% block content %}
-<h1>Aktywności</h1>
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+        {% if category == 'message' %}
+            <div class="alert alert-warning" role="alert">
+        {% else %}
+            <div class="alert alert-{{ category  }} mt-3 alert-dismissible" role="alert">
+        {% endif %}
+            {{ message }}
+        </div>
+    {% endfor %}
+    {% endif %}
+{% endwith %}
+    <h1>Aktywności</h1>
 {% if error_message %}
 <h3>Autoryzacja dla Strava</h3>
 <p>Aby uzyskać dostęp do statystyk ze Strava, proszę zautoryzuj tę aplikację klikając w przycisk poniżej.</p>
@@ -26,17 +39,29 @@
     }
 </style>
 {% endif %}
+
 <form action="/process_activities" method="post" enctype="multipart/form-data">
-    <table class="table table-striped">
+    <table class="table table-striped" id="activities-table">
         <thead>
             <tr>
                 <th>Zaznacz</th>
+                {% if activities | length > 0 %}
                 <th>Nazwa aktywności</th>
                 <th>Data</th>
                 <th>Dystans (km)</th>
+                {% else %}
+                <th>Dystans (km)</th>
+                {% endif %}
             </tr>
         </thead>
         <tbody>
+            {% if activities | length == 0 %}
+            <tr hidden="true"></tr>
+            </tbody>
+            </table>
+            <button type="button" id="add-row-btn" class="btn btn-primary mt-3">Dodaj wiersz</button>
+            <button type="button" id="remove-row-btn" class="btn btn-danger mt-3">Usuń wiersz</button>
+            {% endif %}
             {% for activity in activities %}
             <tr>
                 <td><input type="checkbox" name="selected_activities" value="{{ activity.distance_km }}"></td>
@@ -52,4 +77,28 @@
     <button type="submit" class="btn btn-primary mt-3">Wyślij</button>
 </form>
 
+<script>
+document.getElementById('add-row-btn').addEventListener('click', function() {
+    var table = document.getElementById('activities-table');
+    var lastRow = table.rows[table.rows.length - 1];
+    var rowIndex = lastRow.rowIndex;
+    var newRow = table.insertRow(-1);
+    var cell1 = newRow.insertCell(0);
+    var cell2 = newRow.insertCell(1);
+    cell1.innerHTML = '<input type="checkbox" name="selected_activities" value="0" checked="true">';
+    cell2.innerHTML = '<input type="number" name="distance_km" value="0" oninput="validateDistanceInput(event)">';
+    
+    cell2.querySelector('input').addEventListener('input', function(event) {
+    var checkbox = cell1.querySelector('input');
+    checkbox.value = this.value;
+  });
+});
+
+document.getElementById('remove-row-btn').addEventListener('click', function(event) {
+    var table = document.getElementById('activities-table');
+    var lastRow = table.rows[table.rows.length - 1];
+    table.deleteRow(lastRow.rowIndex);
+});
+
+</script>
 {% endblock %}
