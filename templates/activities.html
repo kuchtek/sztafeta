@@ -1,0 +1,55 @@
+<!-- templates/activities.html -->
+{% extends "base.html" %}
+{% block title %}Aktywności - SztafetaStat{% endblock %}
+{% block content %}
+<h1>Aktywności</h1>
+{% if error_message %}
+<h3>Autoryzacja dla Strava</h3>
+<p>Aby uzyskać dostęp do statystyk ze Strava, proszę zautoryzuj tę aplikację klikając w przycisk poniżej.</p>
+<a href="/strava_login" class="strava-button">Połącz ze Strava</a>
+
+<style>
+    .strava-button {
+        display: inline-block;
+        background-color: #FC4C02; /* Strava's primary color */
+        color: white;
+        padding: 10px 20px;
+        font-size: 16px;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+    }
+
+    .strava-button:hover {
+        background-color: #e04501;
+    }
+</style>
+{% endif %}
+<form action="/process_activities" method="post" enctype="multipart/form-data">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Zaznacz</th>
+                <th>Nazwa aktywności</th>
+                <th>Data</th>
+                <th>Dystans (km)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for activity in activities %}
+            <tr>
+                <td><input type="checkbox" name="selected_activities" value="{{ activity.distance_km }}"></td>
+                <td>{{ activity.name }}</td>
+                <td>{{ activity.start_date }}</td>
+                <td>{{ activity.distance_km }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <textarea name="notes" class="form-control" rows="3" placeholder="Add your notes here"></textarea>
+    <input type="file" name="files" multiple class="form-control mt-3">
+    <button type="submit" class="btn btn-primary mt-3">Wyślij</button>
+</form>
+
+{% endblock %}

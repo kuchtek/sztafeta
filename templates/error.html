@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}Błąd{% endblock %}
+
+{% block content %}
+{% if error_code == 404 %}
+<div class="container">
+    <h1>A co to za szperanie? Nie ma takiej strony!</h1>
+    <a href="/" class="btn btn-primary mt-3">Powrót do strony głównej</a>
+</div>
+{% elif error_code == 500 %}
+<div class="container">
+    <h1>Coś poszło nie tak!</h1>
+    <p>Przepraszam, ale coś poszło nie tak ze skryptem. Sprobój ponownie.</p>
+    <p>Jeśli problem będzie się powtarzało się, skontaktuj sie z administratorem.</p>
+    <a href="/" class="btn btn-primary mt-3">Powrót do strony głównej</a>
+</div>
+{% endif %}
+{% endblock %}

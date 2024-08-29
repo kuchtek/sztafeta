@@ -1,0 +1,25 @@
+<!-- templates/athlete.html -->
+{% extends "base.html" %}
+
+{% block title %}Informacje o zawodniku - SztafetaStat{% endblock %}
+
+{% block content %}
+<h1>Informacje o zawodniku </h1>
+
+<div class="card mb-3">
+    <div class="row g-0">
+        <div class="col-md-4">
+            <img src="{{ athlete.profile_picture }}" class="img-fluid rounded-start" alt="{{ athlete.name }}">
+        </div>
+        <div class="col-md-8">
+            <div class="card-body">
+                <h5 class="card-title">{{ athlete.name }}</h5>
+                <p class="card-text"><strong>Lokalizacja:</strong> {{ athlete.location }}</p>
+                <p class="card-text"><strong>Ilość aktywności razem:</strong> {{ athlete.total_activities }}</p>
+                <p class="card-text"><strong>Całkowity pokonany dystans: </strong> {{ athlete.total_distance }} km</p>
+                <p class="card-text"><small class="text-muted">Ostatnia aktualizacja: {{ athlete.last_updated }}</small></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
