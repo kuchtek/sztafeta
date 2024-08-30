@@ -233,24 +233,33 @@ def redirect_hejto():
 
 @app.route('/process_activities', methods=["GET", "POST"])
 def process_activities():
+    app.logger.info("Within /process_activities")
     selected_ids = request.form.getlist('selected_activities')
+    app.logger.info(selected_ids)
     if len(selected_ids) == 0:
         flash("Zaznacz przynajmniej jedną aktywność", "danger")
         return render_template('activities.html')
     if len(selected_ids) == 1 and selected_ids[0] == '0':
         flash("Dystans musi być większy niż 0", "danger")
         return render_template('activities.html')
-    # strava_activities = json.loads(session.get('strava_activities', '[]'))
     hejto_distance = get_last_distance()
+    app.logger.info(hejto_distance)
     if hejto_distance is None:
         return "Nie udało się pobrać dystansu z ostatniego postu."
     str_builder = '{:,}'.format(float(hejto_distance)).replace(","," ").replace(".",",")
     total_distance = float(hejto_distance)
     for distance in selected_ids:
+        app.logger.info("Distance: " + distance)
         total_distance += float(distance)
         str_builder += " + " + '{:,}'.format(float(distance)).replace(","," ").replace(".",",")
-    str_builder += " = " + '{:,}'.format(float(total_distance)).replace(","," ").replace(".",",")
-
+        app.logger.info("Current str: " + str_builder)
+    try:
+        app.logger.info("Trying to cast to float")
+        str_builder += " = " + "{:,.2f}".format(total_distance).replace(","," ").replace(".",",")
+    except:
+        app.logger.info("Failed to cast to float")
+        str_builder += " = " + "{:,2f}".format(total_distance).replace(","," ").replace(".",",")
+    app.logger.info("Total distance: " + str(total_distance))
     # czas na pobranie notatek, obrazków
     notes = request.form.get("notes")
     str_builder += f"\n {notes} \n Wpis dodany za pomocą https://hejto.sztafetastat.eu \n #sztafeta #bieganie"
@@ -267,13 +276,12 @@ def process_activities():
             except Exception as e:
                 return str(e)
         i=i+1
-    return render_template(url_for('activity'))
-    # response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False)
-    # if response.status_code == 201:
-    #     return redirect("/redirect")
-    # else:
-    #     print(f"Failed to create post: {response.status_code} {response.text}")
-    #     raise Exception(f"Failed to create post: {response.status_code} {response.text}")
+    response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False)
+    if response.status_code == 201:
+        return redirect("/redirect")
+    else:
+        print(f"Failed to create post: {response.status_code} {response.text}")
+        raise Exception(f"Failed to create post: {response.status_code} {response.text}")
 
 
 def upload_image(file):
@@ -309,7 +317,7 @@ def create_post(content, images=None, nsfw=False):
             'type': 'discussion'
         }
         response = requests.post(url, headers=headers, json=payload)
-
+        app.logger.info(f"Response Status Code: {response.status_code}")
         print(f"Response Status Code: {response.status_code}")
         
         # Check if the response has content and try to parse it as JSON
@@ -317,6 +325,7 @@ def create_post(content, images=None, nsfw=False):
     
     except Exception as e:
         print(f"Error in create_post: {str(e)}")
+        app.logger.info(f"Error in create_post: {str(e)}")
         raise
 
 

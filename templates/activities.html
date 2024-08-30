@@ -86,7 +86,7 @@ document.getElementById('add-row-btn').addEventListener('click', function() {
     var cell1 = newRow.insertCell(0);
     var cell2 = newRow.insertCell(1);
     cell1.innerHTML = '<input type="checkbox" name="selected_activities" value="0" checked="true">';
-    cell2.innerHTML = '<input type="number" name="distance_km" value="0" oninput="validateDistanceInput(event)">';
+    cell2.innerHTML = '<input type="number" name="distance_km" value="0" step=0.01 oninput="validateDistanceInput(event)">';
     
     cell2.querySelector('input').addEventListener('input', function(event) {
     var checkbox = cell1.querySelector('input');
