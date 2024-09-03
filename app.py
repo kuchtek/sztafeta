@@ -134,31 +134,6 @@ def get_hejto_token(client_id, client_secret, authorization_code):
     else:
         app.logger.error("Something goes wrong")
         raise Exception(f"Failed to retrieve token: {response.status_code} {response.text}")
-
-def get_posts(access_token, community='Sztafeta', limit=1):
-    url = f'https://api.hejto.pl/posts?community={community}&limit={limit}'
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
-
-    response = requests.get(url, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        raise Exception(f"Failed to retrieve posts: {response.status_code} {response.text}")
-
-@app.route('/get_posts')
-def fetch_posts():
-    if 'access_token' not in session.keys():
-        app.logger.error("Access token not found in session")
-        return redirect(url_for('login'))
-    else:
-        try:
-            posts = get_posts(access_token=session['access_token'], community='Sztafeta', limit=1)
-            return jsonify(posts)
-        except Exception as e:
-            return str(e), 400
     
 @app.route('/activity/<string:activity_type>')
 @app.route('/activity/')
@@ -266,7 +241,10 @@ def process_activities():
     total_distance = float(hejto_distance)
     for distance in selected_ids:
         app.logger.info("Distance: " + distance)
-        total_distance += float(distance)
+        if(community=='spacer'):
+            total_distance -= float(distance)
+        else:
+            total_distance += float(distance)
         str_builder += " + " + '{:,}'.format(float(distance)).replace(","," ").replace(".",",")
         app.logger.info("Current str: " + str_builder)
     try:
@@ -279,6 +257,8 @@ def process_activities():
     # czas na pobranie notatek, obrazków
     notes = request.form.get("notes")
     str_builder += f"\n {notes} \n Wpis dodany za pomocą https://hejto.sztafetastat.eu \n #sztafeta #bieganie"
+    if(community=='spacer'):
+        str_builder = str_builder.replace('+','-')
     files = request.files.getlist('files')
 
     uploaded_file_uuids = []
@@ -317,7 +297,7 @@ def upload_image(file):
 
 
 
-def create_post(content, images=None, nsfw=False, community):
+def create_post(content, images=None, nsfw=False, community='sztafeta'):
     try:
         access_token = session['access_token']
         url = 'https://api.hejto.pl/posts'
