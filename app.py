@@ -14,9 +14,9 @@ from flask import flash
 app = Flask(__name__)
 app.logger.addHandler(logging.StreamHandler())
 app.logger.setLevel(logging.INFO)
-app.secret_key = "sekretny_klucz"
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 load_dotenv()
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 #--------------------- ENVIROMENT VARIABLES -----------------------
 URI = os.environ.get('URI')
 CLIENT_ID = os.environ.get('CLIENT_ID')
@@ -31,7 +31,7 @@ STRAVA_REDIRECT_URI = f'{URI}/strava_callback'
 def inject_footer_data():
     return {
         'current_date': '2024',
-        'app_version': '0.2'
+        'app_version': '0.3'
     }
 #--------------------- HEJTO ROUTES -----------------------
 @app.route('/')
@@ -220,10 +220,16 @@ def process_activities():
     app.logger.info("Within /process_activities")
     activity_type = request.form.get('activity_type')
     communities = {
-        'Sztafeta': 'sztafeta',
-        'rowerowy-rownik': 'rownik',
-        'ksiezycowy-spacer': 'spacer'
+        'sztafeta': 'Sztafeta',
+        'rownik': 'rowerowy-rownik',
+        'spacer': 'ksiezycowy-spacer'
     }
+    tag_communities = {
+        'sztafeta': '#sztafeta #bieganie',
+        'rownik': '#rowerowyrownik',
+        'spacer': '#ksiezycowyspacer'
+    }
+    tag_community = tag_communities[activity_type]
     community = communities[activity_type]
     selected_ids = request.form.getlist('selected_activities')
     app.logger.info(selected_ids)
@@ -241,7 +247,7 @@ def process_activities():
     total_distance = float(hejto_distance)
     for distance in selected_ids:
         app.logger.info("Distance: " + distance)
-        if(community=='spacer'):
+        if(community=='ksiezycowy-spacer'):
             total_distance -= float(distance)
         else:
             total_distance += float(distance)
@@ -256,8 +262,8 @@ def process_activities():
     app.logger.info("Total distance: " + str(total_distance))
     # czas na pobranie notatek, obrazków
     notes = request.form.get("notes")
-    str_builder += f"\n {notes} \n Wpis dodany za pomocą https://hejto.sztafetastat.eu \n #sztafeta #bieganie"
-    if(community=='spacer'):
+    str_builder += f"\n {notes} \n Wpis dodany za pomocą https://hejto.sztafetastat.eu \n {tag_community}"
+    if(community=='ksiezycowy-spacer'):
         str_builder = str_builder.replace('+','-')
     files = request.files.getlist('files')
 
@@ -272,6 +278,7 @@ def process_activities():
             except Exception as e:
                 return str(e)
         i=i+1
+    # return str_builder
     response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False, community=community)
     if response.status_code == 201:
         return redirect("/redirect")

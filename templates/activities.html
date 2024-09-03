@@ -73,7 +73,7 @@
         </tbody>
     </table>
     <textarea name="notes" class="form-control" rows="3" placeholder="Add your notes here"></textarea>
-    <label name="activity_type" value="{{ activity_type }}" hidden></label>
+    <input type="hidden" value="{{ activity_type }}" name="activity_type" />
     <input type="file" name="files" multiple class="form-control mt-3">
     <button type="submit" class="btn btn-primary mt-3">Wyślij</button>
 </form>
