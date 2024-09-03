@@ -171,12 +171,12 @@ def fetch_athlete_activities(activity_type=None):
     if activity_type == None:
         app.logger.info("nic tu nie ma")
         return redirect('/athlete')
-    if activity_type not in ['sztafeta','rownik']:
+    if activity_type not in ['sztafeta','rownik', 'spacer']:
         return render_template("activities.html", error_message="Invalid activity type", activities=[])
     try:
         access_token = session.get('strava_access_token')
         activities = get_strava_activities(access_token=access_token, per_page=10, activity_type=activity_type)
-        return render_template("activities.html", activities=activities)
+        return render_template("activities.html", activities=activities, activity_type=activity_type)
     except Exception as error:
         strava_auth_url = url_for('activity')
         print("Error:", error)
@@ -190,37 +190,46 @@ def fetch_run_activities():
 def fetch_ride_activities():
     return fetch_athlete_activities('rownik')
 
-def get_last_distance():
+@app.route('/activity/spacer')
+def fetch_walk_activities():
+    return fetch_athlete_activities('spacer')
+
+@app.route('/last_distance/<string:community>')
+def get_last_distance_from_community(community):
+    return get_last_distance(community=community)
+
+def get_last_distance(community):
     url = 'https://api.hejto.pl/posts'
     params = {
-        'community': 'Sztafeta',
-        'limit': 1
+        'community': community,
+        'limit': 5
     }
     response = requests.get(url, params=params)
 
     if response.status_code == 200:
         posts = response.json()
         if posts["_embedded"]["items"]:
-            last_post = posts["_embedded"]["items"][0]
-            content_plain = last_post.get("content_plain", "")
-            
-            first_line = unicodedata.normalize("NFKD",content_plain.splitlines()[0])
-            
-            regex_pattern = r'\b\d{1,3}(?: \d{3})*(?:,\d+)?\b'
-            distances = re.findall(regex_pattern, first_line)
-            
-            if distances:
-                # Zwracamy ostatniÄ… liczbÄ™, ktĂłra powinna byÄ‡ dystansem
-                distance_str = distances[-1].replace(' ', '') 
-                return str(distance_str.replace(',', '.'))  
-            else:
-                regex_pattern = r'\b\d{1,3}(?: \d{3})*(?:,\d+)?\b'
-                for line in content_plain.splitlines():
-                    line = unicodedata.normalize("NFKD", line)
-                    distances = re.findall(regex_pattern, line)
-                    if distances:
-                        distance_str = distances[-1].replace(' ', '')
-                        return str(distance_str.replace(',', '.'))
+            for post in posts["_embedded"]["items"]:
+                # last_post = posts["_embedded"]["items"][0]
+                content_plain = post.get("content_plain", "")
+                
+                first_line = unicodedata.normalize("NFKD",content_plain.splitlines()[0])
+                
+                regex_pattern = r'\b\d+(?: \d{3})*(?:,\d+)?\b'
+                distances = re.findall(regex_pattern, first_line)
+                
+                if distances:
+                    #Zwracamy ostatnia liczbe ktora powinna byc dystansem
+                    distance_str = distances[-1].replace(' ', '') 
+                    return str(distance_str.replace(',', '.'))  
+                else:
+                    regex_pattern = r'\b\d{1,3}(?: \d{3})*(?:,\d+)?\b'
+                    for line in content_plain.splitlines():
+                        line = unicodedata.normalize("NFKD", line)
+                        distances = re.findall(regex_pattern, line)
+                        if distances:
+                            distance_str = distances[-1].replace(' ', '')
+                            return str(distance_str.replace(',', '.'))
         else:
             return None
     else:
@@ -234,6 +243,13 @@ def redirect_hejto():
 @app.route('/process_activities', methods=["GET", "POST"])
 def process_activities():
     app.logger.info("Within /process_activities")
+    activity_type = request.form.get('activity_type')
+    communities = {
+        'Sztafeta': 'sztafeta',
+        'rowerowy-rownik': 'rownik',
+        'ksiezycowy-spacer': 'spacer'
+    }
+    community = communities[activity_type]
     selected_ids = request.form.getlist('selected_activities')
     app.logger.info(selected_ids)
     if len(selected_ids) == 0:
@@ -242,7 +258,7 @@ def process_activities():
     if len(selected_ids) == 1 and selected_ids[0] == '0':
         flash("Dystans musi być większy niż 0", "danger")
         return render_template('activities.html')
-    hejto_distance = get_last_distance()
+    hejto_distance = get_last_distance(community=community)
     app.logger.info(hejto_distance)
     if hejto_distance is None:
         return "Nie udało się pobrać dystansu z ostatniego postu."
@@ -276,7 +292,7 @@ def process_activities():
             except Exception as e:
                 return str(e)
         i=i+1
-    response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False)
+    response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False, community=community)
     if response.status_code == 201:
         return redirect("/redirect")
     else:
@@ -301,7 +317,7 @@ def upload_image(file):
 
 
 
-def create_post(content, images=None, nsfw=False):
+def create_post(content, images=None, nsfw=False, community):
     try:
         access_token = session['access_token']
         url = 'https://api.hejto.pl/posts'
@@ -313,7 +329,7 @@ def create_post(content, images=None, nsfw=False):
             'content': content,
             'images': images or [],
             'nsfw': nsfw,
-            'community': "Sztafeta",
+            'community': community,
             'type': 'discussion'
         }
         response = requests.post(url, headers=headers, json=payload)
@@ -448,7 +464,7 @@ def generate_ranking(user_aggregated):
 @app.route('/ranking/<string:community>')
 def ranking(community):
     app.logger.info("Community: {}".format(community))
-    if community not in ['sztafeta', 'rownik']:
+    if community not in ['sztafeta', 'rownik', 'spacer']:
         app.logger.error("Ranking not found")
         return render_template('error.html', error_code=404)
     if 'access_token' not in session.keys():
@@ -613,7 +629,8 @@ def get_strava_activities(access_token, per_page=10,activity_type='sztafeta'):
     }
     activity_types = {
         'sztafeta': 'Run',
-        'rownik': 'Ride'
+        'rownik': 'Ride',
+        'spacer': 'Walking'
     }
     response = requests.get(api_endpoint, headers=headers, params=params)
     print("Getting activities")
