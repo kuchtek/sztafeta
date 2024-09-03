@@ -343,31 +343,16 @@ def fetch_community_posts(access_token, limit=50, community=None):
     return response.json()["_embedded"]["items"]
 
 def extract_distance_from_post(content):
-    # regex_pattern = r'\b\d{1,3}(?:[ ]?\d{3})*(?:[,.]\d+)?\b'
-    regex_pattern = r'^(\d+[ ,]*\d+[,]*\d+)((?:[ \+]+)(\d+[,]*\d+))+[ =]*(\d+[ ,]*\d+[,]*\d+)'
-    naive_pattern = r'\d+ ?\d+,?\d*[+\d ,]+=[+\d ,]+'
     content = unicodedata.normalize("NFKD", content) # remove \xa0
-    distances = re.findall(naive_pattern, content)
+    app.logger.info(content)
     # calculated_distance=0.0
-    if distances:
-        distances_eq = distances[0].split('=')
-        distances = distances_eq[0].split('+')
-        distances.append(distances_eq[1])
-        distances = distances[1:-1]
-        for index, distance in enumerate(distances):
-            if(distance == ''):
-                if index == len(distances) - 1:
-                    distances.remove('')
-                    return distances
-            distances[index] = float(distance.replace(',',".").strip())
-        return distances
-    else:
-        distances = re.findall(naive_pattern, content)
-        if distances:
-            distance_str = distances[-1].replace(' ', '')
-        else:
-            return 0.0
-        return str(distance_str.replace(',', '.'))
+    content = re.sub(r'^\d{1,3}(?:[ ]\d{3})*(?:[.,]\d+)?\s*', '', content)
+    content = re.sub(r'\s*=\s*.*$', '', content)
+    pattern = re.compile(r'[+-]\s*(\d{1,3}(?:[ ]\d{3})*(?:[.,]\d+)?)')
+    matches = pattern.findall(content)
+    distances = [float(num.replace(' ', '').replace(',', '.')) for num in matches]
+    app.logger.info(distances)
+    return distances
    
 
 def extract_user_distances(posts):
@@ -453,12 +438,14 @@ def ranking(community):
         return redirect(url_for('login'))
     if community=='rownik':
         community='rowerowy-rownik'
+    if community=='spacer':
+        community='ksiezycowy-spacer'
     access_token = session['access_token']
     try:
-        sztafeta_posts = fetch_community_posts(access_token, limit=50, community=community)
+        community_posts = fetch_community_posts(access_token, limit=50, community=community)
         app.logger.info("extracted posts")
-        app.logger.debug(sztafeta_posts)
-        user_distances = extract_user_distances(sztafeta_posts)
+        app.logger.debug(community_posts)
+        user_distances = extract_user_distances(community_posts)
         app.logger.info("extracted distances")
         app.logger.debug(user_distances)
         user_aggregated = aggregate_distances(user_distances)
