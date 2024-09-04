@@ -604,7 +604,7 @@ def get_strava_activities(access_token, per_page=10,activity_type='sztafeta'):
     activity_types = {
         'sztafeta': 'Run',
         'rownik': 'Ride',
-        'spacer': 'Walking'
+        'spacer': 'Walk'
     }
     response = requests.get(api_endpoint, headers=headers, params=params)
     print("Getting activities")
