@@ -279,13 +279,13 @@ def process_activities():
             except Exception as e:
                 return str(e)
         i=i+1
-    return str_builder
-    # response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False, community=community)
-    # if response.status_code == 201:
-    #     return redirect(f"https://www.hejto.pl/spolecznosc/{community}")
-    # else:
-    #     print(f"Failed to create post: {response.status_code} {response.text}")
-    #     raise Exception(f"Failed to create post: {response.status_code} {response.text}")
+    # return str_builder
+    response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False, community=community)
+    if response.status_code == 201:
+        return redirect(f"https://www.hejto.pl/spolecznosc/{community}")
+    else:
+        print(f"Failed to create post: {response.status_code} {response.text}")
+        raise Exception(f"Failed to create post: {response.status_code} {response.text}")
 
 
 def upload_image(file):
