@@ -1,7 +1,7 @@
 version: "3"
 services:
     sztafeta:
-        image: sztafeta:0.1-min
+        image: sztafeta:0.3-min
         build:
             context: .
         ports:
