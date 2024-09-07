@@ -1,11 +1,11 @@
 version: "3"
 services:
     sztafeta:
-       image: sztafeta:0.1-min
-       build:
-           context: .
-       ports:
-           -  "8888"
+        image: sztafeta:0.1-min
+        build:
+            context: .
+        ports:
+            -  "8888"
     nginx: 
         image: nginx:latest
         volumes:

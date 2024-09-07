@@ -138,13 +138,13 @@ def get_hejto_token(client_id, client_secret, authorization_code):
 @app.route('/activity/<string:activity_type>')
 @app.route('/activity/')
 def fetch_athlete_activities(activity_type=None):
-    app.logger.info("Activity type: {}".format(activity_type))
+    app.logger.debug("Activity type: {}".format(activity_type))
     if 'access_token' not in session.keys():
         app.logger.error("Access token not found in session")
         print(session.keys())
         return redirect(url_for('login'))
     if activity_type == None:
-        app.logger.info("nic tu nie ma")
+        app.logger.debug("nic tu nie ma")
         return redirect('/athlete')
     if activity_type not in ['sztafeta','rownik', 'spacer']:
         return render_template("activities.html", error_message="Invalid activity type", activities=[])
@@ -210,11 +210,6 @@ def get_last_distance(community):
     else:
         raise Exception(f"Failed to retrieve posts: {response.status_code} {response.text}")
 
-
-@app.route('/redirect')
-def redirect_hejto():
-    return redirect("https://www.hejto.pl/spolecznosc/sztafeta")
-
 @app.route('/process_activities', methods=["GET", "POST"])
 def process_activities():
     app.logger.info("Within /process_activities")
@@ -232,7 +227,7 @@ def process_activities():
     tag_community = tag_communities[activity_type]
     community = communities[activity_type]
     selected_ids = request.form.getlist('selected_activities')
-    app.logger.info(selected_ids)
+    app.logger.debug(selected_ids)
     if len(selected_ids) == 0:
         flash("Zaznacz przynajmniej jedną aktywność", "danger")
         return render_template('activities.html')
@@ -240,33 +235,39 @@ def process_activities():
         flash("Dystans musi być większy niż 0", "danger")
         return render_template('activities.html')
     hejto_distance = get_last_distance(community=community)
-    app.logger.info(hejto_distance)
+    app.logger.debug(hejto_distance)
     if hejto_distance is None:
         return "Nie udało się pobrać dystansu z ostatniego postu."
     str_builder = '{:,}'.format(float(hejto_distance)).replace(","," ").replace(".",",")
     total_distance = float(hejto_distance)
     for distance in selected_ids:
-        app.logger.info("Distance: " + distance)
+        app.logger.debug("Distance: " + distance)
+        distance = round(float(distance), 2)
         if(community=='ksiezycowy-spacer'):
-            total_distance -= float(distance)
+            total_distance -= distance
         else:
-            total_distance += float(distance)
-        str_builder += " + " + '{:,}'.format(float(distance)).replace(","," ").replace(".",",")
-        app.logger.info("Current str: " + str_builder)
-    try:
-        app.logger.info("Trying to cast to float")
-        str_builder += " = " + "{:,.2f}".format(total_distance).replace(","," ").replace(".",",")
-    except:
-        app.logger.info("Failed to cast to float")
-        str_builder += " = " + "{:,2f}".format(total_distance).replace(","," ").replace(".",",")
-    app.logger.info("Total distance: " + str(total_distance))
+            if(community=='rowerowy-rownik'):
+                distance = round(distance)
+                total_distance += distance
+                total_distance = round(total_distance)
+            else:
+                total_distance += distance
+        str_builder += " + " + '{:,}'.format(distance).replace(","," ").replace(".",",")
+        app.logger.debug("Current str: " + str_builder)
+    # try:
+    app.logger.debug("Trying to cast to float")
+    str_builder += " = " + "{:,}".format(total_distance).replace(","," ").replace(".",",")
+    # except: 
+    #     app.logger.debug("Failed to cast to float")
+    #     str_builder += " = " + "{:,2f}".format(total_distance).replace(","," ").replace(".",",")
+    app.logger.debug("Total distance: " + str(total_distance))
     # czas na pobranie notatek, obrazków
     notes = request.form.get("notes")
     str_builder += f"\n {notes} \n Wpis dodany za pomocą https://hejto.sztafetastat.eu \n {tag_community}"
     if(community=='ksiezycowy-spacer'):
         str_builder = str_builder.replace('+','-')
     files = request.files.getlist('files')
-
+    app.logger.debug(str_builder)
     uploaded_file_uuids = []
     i=1
     for file in files:
@@ -278,13 +279,13 @@ def process_activities():
             except Exception as e:
                 return str(e)
         i=i+1
-    # return str_builder
-    response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False, community=community)
-    if response.status_code == 201:
-        return redirect("/redirect")
-    else:
-        print(f"Failed to create post: {response.status_code} {response.text}")
-        raise Exception(f"Failed to create post: {response.status_code} {response.text}")
+    return str_builder
+    # response = create_post(content=str_builder,images=uploaded_file_uuids,nsfw=False, community=community)
+    # if response.status_code == 201:
+    #     return redirect(f"https://www.hejto.pl/spolecznosc/{community}")
+    # else:
+    #     print(f"Failed to create post: {response.status_code} {response.text}")
+    #     raise Exception(f"Failed to create post: {response.status_code} {response.text}")
 
 
 def upload_image(file):
@@ -351,16 +352,15 @@ def fetch_community_posts(access_token, limit=50, community=None):
 
 def extract_distance_from_post(content):
     content = unicodedata.normalize("NFKD", content) # remove \xa0
-    app.logger.info(content)
+    app.logger.debug(content)
     # calculated_distance=0.0
     content = re.sub(r'^\d{1,3}(?:[ ]\d{3})*(?:[.,]\d+)?\s*', '', content)
     content = re.sub(r'\s*=\s*.*$', '', content)
     pattern = re.compile(r'[+-]\s*(\d{1,3}(?:[ ]\d{3})*(?:[.,]\d+)?)')
     matches = pattern.findall(content)
     distances = [float(num.replace(' ', '').replace(',', '.')) for num in matches]
-    app.logger.info(distances)
+    app.logger.debug(distances)
     return distances
-   
 
 def extract_user_distances(posts):
     user_distances = {}
@@ -393,7 +393,7 @@ def aggregate_distances(user_distances):
         month_count = 0
         year_count = 0
         for activity in activities:
-            app.logger.info(activity)
+            app.logger.debug(activity)
             if not isinstance(activity['distance'], list):
                 activity['distance'] = [activity['distance']]
             if activity["created_at"] >= week_start:
@@ -465,7 +465,6 @@ def ranking(community):
         monthly_data = defaultdict(float)
         weekly_data = defaultdict(float)
         for username, activities in user_distances.items():
-            
             for activity in activities:
                 # Extract the activity date and distance
                 activity_date = activity['created_at']  # Ensure this is the correct key for the date
@@ -500,12 +499,12 @@ def ranking(community):
         print(weekly_values_json)
 
         return render_template('ranking.html', 
-                               rankings=rankings,
-                               community=community,
-                               monthly_labels=monthly_labels_json,
-                               monthly_data=monthly_values_json,
-                               weekly_labels=weekly_labels_json,
-                               weekly_data=weekly_values_json)
+                                rankings=rankings,
+                                community=community,
+                                monthly_labels=monthly_labels_json,
+                                monthly_data=monthly_values_json,
+                                weekly_labels=weekly_labels_json,
+                                weekly_data=weekly_values_json)
     except Exception as error:
         app.logger.error(f"Error occurred in /ranking route: {str(error)}")
         return redirect(url_for('login'))
@@ -650,6 +649,11 @@ def internal_error(error):
 def handle_exception(e):
     return render_template('error.html', message="Nie obsłużony wyjątek!"), 500
 
+# General monitoring block
+@app.route('/ping')
+def ping():
+    return 'pong'
+
 if __name__ == '__main__':
-    # app.run(debug=True, host='0.0.0.0')
-    app.run(debug=True)
+    app.run(host='0.0.0.0')
+    # app.run(debug=True)
