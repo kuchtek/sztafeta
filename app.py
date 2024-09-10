@@ -238,8 +238,8 @@ def process_activities():
     app.logger.debug(hejto_distance)
     if hejto_distance is None:
         return "Nie udało się pobrać dystansu z ostatniego postu."
-    str_builder = '{:,}'.format(float(hejto_distance)).replace(","," ").replace(".",",")
-    total_distance = float(hejto_distance)
+    total_distance = round(float(hejto_distance)) if community=='rowerowy-rownik' else round(float(hejto_distance), 2)
+    str_builder = '{:,}'.format(total_distance).replace(","," ").replace(".",",")
     for distance in selected_ids:
         app.logger.debug("Distance: " + distance)
         distance = round(float(distance), 2)
