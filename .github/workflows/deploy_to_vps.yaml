@@ -15,7 +15,15 @@ jobs:
               id: check-gh-key-secret
               shell: bash
               run: |
-                if [[ ! -z  "${{ secrets.VPS_PASSWORD }}" ]] && [[ ! -z  "${{ secrets.VPS_USERNAME }}" ]] && [[ ! -z  "${{ secrets.VPS_HOST }}" ]]  &&  [[ ! -z ${{ secrets.URI }} ]] && [[ ! -z ${{ secrets.CLIENT_ID }} ]] && [[ ! -z ${{ secrets.CLIENT_SECRET }} ]] && [[ ! -z ${{secrets.STRAVA_CLIENT_ID }} ]] && [[ ! -z ${{ secrets.STRAVA_CLIENT_SECRET }} ]] && [[ ! -z ${{ secrets.FLASK_SECRET_KEY }} ]]; then
+                if [[ ! -z  "${{ secrets.VPS_PASSWORD }}" ]] && 
+                    [[ ! -z  "${{ secrets.VPS_USERNAME }}" ]] && 
+                    [[ ! -z  "${{ secrets.VPS_HOST }}" ]]  &&  
+                    [[ ! -z "${{ secrets.URI }}" ]] && 
+                    [[ ! -z "${{ secrets.CLIENT_ID }}" ]] && 
+                    [[ ! -z "${{ secrets.CLIENT_SECRET }}" ]] && 
+                    [[ ! -z "${{secrets.STRAVA_CLIENT_ID }}" ]] && 
+                    [[ ! -z "${{ secrets.STRAVA_CLIENT_SECRET }}" ]] && 
+                    [[ ! -z "${{ secrets.FLASK_SECRET_KEY }}" ]]; then
                     echo "All secrets are declared."
                     echo "declared=true" >> $GITHUB_OUTPUT;
                 else
