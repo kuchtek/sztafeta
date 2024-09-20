@@ -29,6 +29,7 @@ jobs:
                 else
                     echo "At least one secret is missing: VPS_PASSWORD, VPS_USERNAME, VPS_HOST, URI, CLIENT_ID, CLIENT_SECRET, FLASK_SECRET_KEY, STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, ."
                     exit 1
+                fi
         outputs:
             has_gh_secrets: ${{ steps.check-gh-key-secret.outputs.declared }}
     prepare-environment:
