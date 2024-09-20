@@ -234,7 +234,7 @@ def process_activities():
     if len(selected_ids) == 1 and selected_ids[0] == '0':
         flash("Dystans musi być większy niż 0", "danger")
         return render_template('activities.html')
-    hejto_distance = get_last_distance(community=community)
+    hejto_distance = round(get_last_distance(community=community), 2)
     app.logger.debug(hejto_distance)
     if hejto_distance is None:
         return "Nie udało się pobrać dystansu z ostatniego postu."
@@ -254,12 +254,8 @@ def process_activities():
                 total_distance += distance
         str_builder += " + " + '{:,}'.format(distance).replace(","," ").replace(".",",")
         app.logger.debug("Current str: " + str_builder)
-    # try:
-    app.logger.debug("Trying to cast to float")
+    total_distance = round(total_distance, 2)
     str_builder += " = " + "{:,}".format(total_distance).replace(","," ").replace(".",",")
-    # except: 
-    #     app.logger.debug("Failed to cast to float")
-    #     str_builder += " = " + "{:,2f}".format(total_distance).replace(","," ").replace(".",",")
     app.logger.debug("Total distance: " + str(total_distance))
     # czas na pobranie notatek, obrazków
     notes = request.form.get("notes")
