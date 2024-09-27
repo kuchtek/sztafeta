@@ -69,7 +69,7 @@ jobs:
                 username: ${{ secrets.VPS_USERNAME }}
                 password: ${{ secrets.VPS_PASSWORD }}
                 port: 11298
-                script: unzip -o sztafeta.zip ${{ env.USER_PATH}}sztafeta/
+                script: unzip -o sztafeta.zip -d ${{ env.USER_PATH}}sztafeta/
 
     deploy-docker:
         name: Deploy to VPS 
