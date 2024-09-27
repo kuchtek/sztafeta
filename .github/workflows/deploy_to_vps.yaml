@@ -51,7 +51,7 @@ jobs:
                 echo "StRAVA_CLIENT_SECRET = \"${{ secrets.STRAVA_CLIENT_SECRET }}\"" >> .env
                 echo "FLASK_SECRET_KEY = \"${{ secrets.FLASK_SECRET_KEY }}\"" >> .env
             - name: Zip files
-              run: zip -r sztafeta.zip . -x ./.venv -x ./.vscode
+              run: zip -r sztafeta.zip . -x ./.venv -x ./.vscode -x ./.git
             - name: copy files via ssh password
               uses: appleboy/scp-action@v0.1.4
               with:
