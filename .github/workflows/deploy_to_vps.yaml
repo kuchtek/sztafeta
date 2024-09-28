@@ -48,7 +48,7 @@ jobs:
                 echo "CLIENT_ID = \"${{ secrets.CLIENT_ID }}\"" >> .env
                 echo "CLIENT_SECRET = \"${{ secrets.CLIENT_SECRET }}\"" >> .env
                 echo "STRAVA_CLIENT_ID = \"${{ secrets.STRAVA_CLIENT_ID }}\"" >> .env
-                echo "StRAVA_CLIENT_SECRET = \"${{ secrets.STRAVA_CLIENT_SECRET }}\"" >> .env
+                echo "STRAVA_CLIENT_SECRET = \"${{ secrets.STRAVA_CLIENT_SECRET }}\"" >> .env
                 echo "FLASK_SECRET_KEY = \"${{ secrets.FLASK_SECRET_KEY }}\"" >> .env
             - name: Zip files
               run: zip -r sztafeta.zip . -x ./.venv/\* -x ./.vscode/\* -x ./.git/\*
