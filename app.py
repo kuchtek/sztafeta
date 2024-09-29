@@ -234,7 +234,7 @@ def process_activities():
     if len(selected_ids) == 1 and selected_ids[0] == '0':
         flash("Dystans musi być większy niż 0", "danger")
         return render_template('activities.html')
-    hejto_distance = round(get_last_distance(community=community), 2)
+    hejto_distance = get_last_distance(community=community)
     app.logger.debug(hejto_distance)
     if hejto_distance is None:
         return "Nie udało się pobrać dystansu z ostatniego postu."
