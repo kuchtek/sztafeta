@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  data_collector:
+    build: .
+    volumes:
+      - ./data:/app/data  # For SQLite database
+    environment:
+      - DB_TYPE=${DB_TYPE}
+      - DATABASE_URL=${DATABASE_URL}
+    restart: unless-stopped 
