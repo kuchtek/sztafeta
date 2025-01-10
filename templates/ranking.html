@@ -4,163 +4,160 @@
 {% block title %}Sztafeta Ranking{% endblock %}
 
 {% block content %}
-<h1>#{{ community }} Ranking</h1>
+<div class="container mt-4">
+    <!-- Overall Statistics -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2>Overall Runner Statistics</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Runner</th>
+                                <th>Total Distance</th>
+                                <th>Total Runs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in overall_stats %}
+                            <tr>
+                                <td>{{ stat.author }}</td>
+                                <td>{{ stat.total_distance }} km</td>
+                                <td>{{ stat.total_runs }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <canvas id="overallChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<p>Ta sekcja wymaga sporego dopracowania :)</p>
-<h2>Tygodniowy Ranking</h2>
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Miejsce</th>
-            <th>Użytkownik</th>
-            <th>Dystans (km)</th>
-            <th>Liczba aktywności</th>
-            <th>Średni dystans</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for username, distances in rankings.week %}
-        {% if distances.week_count > 0 %}
-        <tr>
-            <td>{{ loop.index }}</td> <!-- Index starts from 1 -->
-            <td>{{ username }}</td>
-            <td>{{ "%.2f"|format(distances.week) }}</td>
-            <td>{{ "%d"|format(distances.week_count) }}</td>
-            <td>{{ "%.2f"|format(distances.week_mean) }}</td>
-        </tr>
-        {% endif %}
-    {% endfor %}
-    </tbody>
-</table>
+    <!-- Current Week and Month -->
+    <div class="row">
+        <!-- Current Week -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>Current Week</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Runner</th>
+                                <th>Distance</th>
+                                <th>Runs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in current_week_stats %}
+                            <tr>
+                                <td>{{ stat.author }}</td>
+                                <td>{{ stat.total_distance }} km</td>
+                                <td>{{ stat.total_runs }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
-<h2>Miesięczny Ranking</h2>
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Miejsce</th>
-            <th>Użytkownik</th>
-            <th>Dystans (km)</th>
-            <th>Liczba aktywności</th>
-            <th>Średni dystans</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for username, distances in rankings.month %}
-        {% if distances.month_count > 0 %}
-        <tr>
-            <td>{{ loop.index }}</td> <!-- Index starts from 1 -->
-            <td>{{ username }}</td>
-            <td>{{ "%.2f"|format(distances.month) }}</td>
-            <td>{{ "%d"|format(distances.month_count) }}</td>
-            <td>{{ "%.2f"|format(distances.month_mean) }}</td>
-        </tr>
-        {% endif %}
-    {% endfor %}
-    </tbody>
-</table>
+        <!-- Current Month -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>Current Month</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Runner</th>
+                                <th>Distance</th>
+                                <th>Runs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in current_month_stats %}
+                            <tr>
+                                <td>{{ stat.author }}</td>
+                                <td>{{ stat.total_distance }} km</td>
+                                <td>{{ stat.total_runs }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<h2>Roczny Ranking</h2>
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Ranking</th>
-            <th>Użytkownik</th>
-            <th>Dystans (km)</th>
-            <th>Liczba aktywności</th>
-            <th>Średni dystans</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for username, distances in rankings.year %}
-        <tr>
-            <td>{{ loop.index }}</td> <!-- Index starts from 1 -->
-            <td>{{ username }}</td>
-            <td>{{ "%.2f"|format(distances.year) }}</td>
-            <td>{{ "%d"|format(distances.year_count) }}</td>
-            <td>{{ "%.2f"|format(distances.year_mean) }}</td>
-        </tr>
-    {% endfor %}
-    </tbody>
-</table>
+    <!-- Monthly Community Progress -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>Community Monthly Progress</h3>
+        </div>
+        <div class="card-body">
+            <canvas id="monthlyProgressChart"></canvas>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<div>
-    <canvas id="monthlyChart" width="400" height="200"></canvas>
-    crt1
-</div>
-<div>
-    crt2
-    {{ mont}}
-    <canvas id="weeklyChart" width="400" height="200"></canvas>
-</div>
 <script>
-    // Get data from Flask template
-    const monthlyLabels = '{{ monthly_labels | safe}}';
-    const monthlyData = '{{ monthly_data | safe}}';
-    const weeklyLabels = '{{ weekly_labels | safe}}';
-    const weeklyData = '{{ weekly_data | safe }}';
-
-    // Create Monthly Ranking Chart
-    const ctx1 = document.getElementById('monthlyChart').getContext('2d');
-        new Chart(ctx1, {
-            type: 'bar',
-            data: {
-                labels: JSON.parse(monthlyLabels),
-                
-                datasets: [{
-                    label: 'Miesięczny Dystans',
-                    data: monthlyData.match(/\d+(?:\.\d+)?/g).map(Number),
-                    borderColor: 'blue',
-                    backgroundColor: 'rgba(0, 0, 255, 0.2)',
-                    fill: true,
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    x: {
-                        beginAtZero: true
-                    },
-                    y: {
-                        beginAtZero: true
-                    }
+    // Overall Statistics Chart
+    const overallCtx = document.getElementById('overallChart').getContext('2d');
+    new Chart(overallCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ overall_stats | map(attribute='author') | list | tojson }},
+            datasets: [{
+                label: 'Total Distance (km)',
+                data: {{ overall_stats | map(attribute='total_distance') | list | tojson }},
+                backgroundColor: 'rgba(54, 162, 235, 0.5)'
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
                 }
             }
-        });
+        }
+    });
 
-        // Weekly Chart
-        const ctx2 = document.getElementById('weeklyChart').getContext('2d');
-        new Chart(ctx2, {
-            type: 'bar',
-            data: {
-                labels: JSON.parse(weeklyLabels),
-                datasets: [{
-                    label: 'Tygodniowy dystans',
-                    data: weeklyData.match(/\d+(?:\.\d+)?/g).map(Number),
-                    borderColor: 'green',
-                    backgroundColor: 'rgba(0, 255, 0, 0.2)',
-                    fill: true,
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    x: {
-                        beginAtZero: true
-                    },
-                    y: {
-                        beginAtZero: true
-                    }
+    // Monthly Progress Chart
+    const monthlyCtx = document.getElementById('monthlyProgressChart').getContext('2d');
+    const monthlyData = {{ monthly_stats | tojson }};
+    new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+            labels: monthlyData.map(d => `${d.year}-${d.month}`),
+            datasets: [{
+                label: 'Total Distance (km)',
+                data: monthlyData.map(d => d.total_distance),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
                 }
             }
-        });
+        }
+    });
 </script>
-<script>
-    console.log('Monthly Labels:', '{{ monthly_labels | tojson | safe }}');
-    console.log('Monthly Data:', '{{ monthly_data | tojson | safe }}');
-    console.log('Weekly Labels:', '{{ weekly_labels | tojson | safe }}');
-    console.log('Weekly Labels:', '{{ weekly_labels | safe }}');
-    console.log('Weekly Data:', '{{ weekly_data | tojson | safe }}');
-</script>
-
 {% endblock %}
 

@@ -9,6 +9,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from flask import flash
+from microservice import HejtoDataCollector
 
 #----------------------- APP CONFIG -----------------------
 app = Flask(__name__)
@@ -30,8 +31,8 @@ STRAVA_REDIRECT_URI = f'{URI}/strava_callback'
 @app.context_processor
 def inject_footer_data():
     return {
-        'current_date': '2024',
-        'app_version': '0.3'
+        'current_date': '2025',
+        'app_version': '0.4'
     }
 #--------------------- HEJTO ROUTES -----------------------
 @app.route('/')
@@ -146,7 +147,7 @@ def fetch_athlete_activities(activity_type=None):
     if activity_type == None:
         app.logger.debug("nic tu nie ma")
         return redirect('/athlete')
-    if activity_type not in ['sztafeta','rownik', 'spacer']:
+    if activity_type not in ['sztafeta','rownik', 'spacer', 'pompuj', 'medytacja']:
         return render_template("activities.html", error_message="Invalid activity type", activities=[])
     try:
         access_token = session.get('strava_access_token')
@@ -169,60 +170,87 @@ def fetch_ride_activities():
 def fetch_walk_activities():
     return fetch_athlete_activities('spacer')
 
+@app.route('/activity/pompuj')
+def fetch_pump_activities():
+    return fetch_athlete_activities('pompuj')
+
+@app.route('/activity/medytacja')
+def fetch_meditation_activities():
+    return fetch_athlete_activities('medytacja')
+
 @app.route('/last_distance/<string:community>')
 def get_last_distance_from_community(community):
     return get_last_distance(community=community)
 
 def get_last_distance(community):
+    app.logger.info("Getting last distance..")
     url = 'https://api.hejto.pl/posts'
     params = {
         'community': community,
         'limit': 5
     }
+    
+    # Special handling for #pompujwpoprzekziemi tag
+    if community == 'sport':
+        params = {
+            'tags[]': 'pompujwpoprzekziemi',
+            'limit': 5
+        }
+    app.logger.info(params)
     response = requests.get(url, params=params)
-
     if response.status_code == 200:
         posts = response.json()
         if posts["_embedded"]["items"]:
             for post in posts["_embedded"]["items"]:
-                # last_post = posts["_embedded"]["items"][0]
                 content_plain = post.get("content_plain", "")
-                
-                first_line = unicodedata.normalize("NFKD",content_plain.splitlines()[0])
+                app.logger.info("Get Content plain: " + content_plain)
+                first_line = unicodedata.normalize("NFKD", content_plain.splitlines()[0])
+                app.logger.info("Get first line: " + first_line)
+                # Check if the line matches the required format
                 
                 regex_pattern = r'\b\d+(?: \d{3})*(?:,\d+)?\b'
                 distances = re.findall(regex_pattern, first_line)
-                
                 if distances:
-                    #Zwracamy ostatnia liczbe ktora powinna byc dystansem
-                    distance_str = distances[-1].replace(' ', '') 
-                    return str(distance_str.replace(',', '.'))  
-                else:
-                    regex_pattern = r'\b\d{1,3}(?: \d{3})*(?:,\d+)?\b'
-                    for line in content_plain.splitlines():
-                        line = unicodedata.normalize("NFKD", line)
+                    distance_str = distances[-1].replace(' ', '')
+                    return str(distance_str.replace(',', '.'))
+
+                # If first line doesn't match, try other lines
+                for line in content_plain.splitlines():
+                    line = unicodedata.normalize("NFKD", line)
+                    if community in ['sport', 'rozwoj']:
+                        if community == 'sport':
+                            match = re.match(r'^\s*(\d+(?:[ ]\d{3})*(?:[.,]\d+)?)\s*(?:\+\s*\d+(?:[ ]\d{3})*(?:[.,]\d+)?)*\s*=\s*\d+(?:[ ]\d{3})*(?:[.,]\d+)?\s*$', line)
+                        else:
+                            match = re.match(r'^\s*(\d+(?:[ ]\d{3})*(?:[.,]\d+)?)\s*(?:-\s*\d+(?:[ ]\d{3})*(?:[.,]\d+)?)*\s*=\s*\d+(?:[ ]\d{3})*(?:[.,]\d+)?\s*$', line)
+                        if match:
+                            initial_number = match.group(1)
+                            return str(initial_number.replace(' ', '').replace(',', '.'))
+                    else:
+                        regex_pattern = r'\b\d{1,3}(?: \d{3})*(?:,\d+)?\b'
                         distances = re.findall(regex_pattern, line)
                         if distances:
                             distance_str = distances[-1].replace(' ', '')
                             return str(distance_str.replace(',', '.'))
-        else:
-            return None
-    else:
-        raise Exception(f"Failed to retrieve posts: {response.status_code} {response.text}")
+    return None
 
 @app.route('/process_activities', methods=["GET", "POST"])
 def process_activities():
     app.logger.info("Within /process_activities")
     activity_type = request.form.get('activity_type')
+    app.logger.info(activity_type)
     communities = {
         'sztafeta': 'Sztafeta',
         'rownik': 'rowerowy-rownik',
-        'spacer': 'ksiezycowy-spacer'
+        'spacer': 'ksiezycowy-spacer',
+        'pompuj': 'sport',
+        'medytacja': 'rozwoj'
     }
     tag_communities = {
         'sztafeta': '#sztafeta #bieganie',
         'rownik': '#rowerowyrownik',
-        'spacer': '#ksiezycowyspacer'
+        'spacer': '#ksiezycowyspacer',
+        'pompuj': '#pompujwpoprzekziemi',
+        'medytacja': '#rokmedytacji'
     }
     tag_community = tag_communities[activity_type]
     community = communities[activity_type]
@@ -234,8 +262,9 @@ def process_activities():
     if len(selected_ids) == 1 and selected_ids[0] == '0':
         flash("Dystans musi być większy niż 0", "danger")
         return render_template('activities.html')
+    app.logger.info("Getting last distance")
     hejto_distance = get_last_distance(community=community)
-    app.logger.debug(hejto_distance)
+    app.logger.info(hejto_distance)
     if hejto_distance is None:
         return "Nie udało się pobrać dystansu z ostatniego postu."
     total_distance = round(float(hejto_distance)) if community=='rowerowy-rownik' else round(float(hejto_distance), 2)
@@ -243,7 +272,7 @@ def process_activities():
     for distance in selected_ids:
         app.logger.debug("Distance: " + distance)
         distance = round(float(distance), 2)
-        if(community=='ksiezycowy-spacer'):
+        if(community in ['sport', 'rozwoj', 'ksiezycowy-spacer']):
             total_distance -= distance
         else:
             if(community=='rowerowy-rownik'):
@@ -260,7 +289,7 @@ def process_activities():
     # czas na pobranie notatek, obrazków
     notes = request.form.get("notes")
     str_builder += f"\n {notes} \n Wpis dodany za pomocą https://hejto.sztafetastat.eu \n {tag_community}"
-    if(community=='ksiezycowy-spacer'):
+    if(community in ['ksiezycowy-spacer', 'sport', 'rozwoj']):
         str_builder = str_builder.replace('+','-')
     files = request.files.getlist('files')
     app.logger.debug(str_builder)
@@ -322,6 +351,7 @@ def create_post(content, images=None, nsfw=False, community='sztafeta'):
         
         # Check if the response has content and try to parse it as JSON
         return response
+        # return payload
     
     except Exception as e:
         print(f"Error in create_post: {str(e)}")
@@ -431,79 +461,18 @@ def generate_ranking(user_aggregated):
 
 @app.route('/ranking/<string:community>')
 def ranking(community):
-    app.logger.info("Community: {}".format(community))
-    if community not in ['sztafeta', 'rownik', 'spacer']:
-        app.logger.error("Ranking not found")
-        return render_template('error.html', error_code=404)
-    if 'access_token' not in session.keys():
-        app.logger.error("Access token not found in session")
-        print(session.keys())
-        return redirect(url_for('login'))
-    if community=='rownik':
-        community='rowerowy-rownik'
-    if community=='spacer':
-        community='ksiezycowy-spacer'
-    access_token = session['access_token']
-    try:
-        community_posts = fetch_community_posts(access_token, limit=50, community=community)
-        app.logger.info("extracted posts")
-        app.logger.debug(community_posts)
-        user_distances = extract_user_distances(community_posts)
-        app.logger.info("extracted distances")
-        app.logger.debug(user_distances)
-        user_aggregated = aggregate_distances(user_distances)
-        app.logger.info("aggregated distances")
-        app.logger.debug(user_aggregated)
-        rankings = generate_ranking(user_aggregated)
-        app.logger.info("generated rankings")
-        app.logger.debug(rankings)
-                # Prepare data for the chart
-        monthly_data = defaultdict(float)
-        weekly_data = defaultdict(float)
-        for username, activities in user_distances.items():
-            for activity in activities:
-                # Extract the activity date and distance
-                activity_date = activity['created_at']  # Ensure this is the correct key for the date
-                km = activity['distance']  # Ensure this is the correct key for the distance
-                
-                # Format month and week from the date
-                month = activity_date.strftime('%Y-%m')
-                week = activity_date.strftime('%Y-%W')
-                
-                # Update the monthly and weekly data
-                monthly_data[month] += sum(km)
-                weekly_data[week] += sum(km)
-
-        monthly_data = dict(sorted(monthly_data.items()))
-        weekly_data = dict(sorted(weekly_data.items()))
-        monthly_labels = list(monthly_data.keys())
-        monthly_values = list(monthly_data.values())
-        weekly_labels = list(weekly_data.keys())
-        weekly_values = list(weekly_data.values())
-
-        # Convert lists to JSON format
-        monthly_labels_json = json.dumps(monthly_labels)
-        monthly_values_json = json.dumps(monthly_values)
-        weekly_labels_json = json.dumps(weekly_labels)
-        weekly_values_json = json.dumps(weekly_values)
-        print(monthly_labels_json)
-
-        print(monthly_values_json)
-
-        print(weekly_labels_json)
-
-        print(weekly_values_json)
-
-        return render_template('ranking.html', 
-                                rankings=rankings,
-                                community=community,
-                                monthly_labels=monthly_labels_json,
-                                monthly_data=monthly_values_json,
-                                weekly_labels=weekly_labels_json,
-                                weekly_data=weekly_values_json)
-    except Exception as error:
-        app.logger.error(f"Error occurred in /ranking route: {str(error)}")
-        return redirect(url_for('login'))
+    collector = HejtoDataCollector()
+    
+    overall_stats = collector.get_overall_stats()
+    current_week_stats = collector.get_current_week_stats()
+    current_month_stats = collector.get_current_month_stats()
+    monthly_stats = collector.get_monthly_community_stats()
+    
+    return render_template('ranking.html',
+                         overall_stats=overall_stats,
+                         current_week_stats=current_week_stats,
+                         current_month_stats=current_month_stats,
+                         monthly_stats=monthly_stats)
 
 #--------------------- STRAVA ROUTES -----------------------
 @app.route('/strava_login')
@@ -588,7 +557,7 @@ def get_strava_athlete(access_token):
     else:
         raise Exception(f"Failed to retrieve athlete data: {response.status_code} {response.text}") 
     
-def get_strava_activities(access_token, per_page=10,activity_type='sztafeta'):
+def get_strava_activities(access_token, per_page=10, activity_type='sztafeta'):
     api_endpoint = 'https://www.strava.com/api/v3/athlete/activities'
     headers = {
         'Authorization': f'Bearer {access_token}'

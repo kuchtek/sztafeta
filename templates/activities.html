@@ -3,103 +3,131 @@
 {% block title %}Aktywności - SztafetaStat{% endblock %}
 {% block content %}
 {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, message in messages %}
-        {% if category == 'message' %}
-            <div class="alert alert-warning" role="alert">
-        {% else %}
-            <div class="alert alert-{{ category  }} mt-3 alert-dismissible" role="alert">
+{% if messages %}
+{% for category, message in messages %}
+{% if category == 'message' %}
+<div class="alert alert-warning" role="alert">
+    {% else %}
+    <div class="alert alert-{{ category  }} mt-3 alert-dismissible" role="alert">
         {% endif %}
-            {{ message }}
-        </div>
+        {{ message }}
+    </div>
     {% endfor %}
     {% endif %}
-{% endwith %}
+    {% endwith %}
     <h1>Aktywności</h1>
-{% if error_message %}
-<h3>Autoryzacja dla Strava</h3>
-<p>Aby uzyskać dostęp do statystyk ze Strava, proszę zautoryzuj tę aplikację klikając w przycisk poniżej.</p>
-<a href="/strava_login" class="strava-button">Połącz ze Strava</a>
+    {% if error_message %}
+    <h3>Autoryzacja dla Strava</h3>
+    <p>Aby uzyskać dostęp do statystyk ze Strava, proszę zautoryzuj tę aplikację klikając w przycisk poniżej.</p>
+    <a href="/strava_login" class="strava-button">Połącz ze Strava</a>
 
-<style>
-    .strava-button {
-        display: inline-block;
-        background-color: #FC4C02; /* Strava's primary color */
-        color: white;
-        padding: 10px 20px;
-        font-size: 16px;
-        text-decoration: none;
-        border-radius: 5px;
-        font-weight: bold;
-        transition: background-color 0.3s ease;
-    }
+    <style>
+        .strava-button {
+            display: inline-block;
+            background-color: #FC4C02;
+            /* Strava's primary color */
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
 
-    .strava-button:hover {
-        background-color: #e04501;
-    }
-</style>
-{% endif %}
+        .strava-button:hover {
+            background-color: #e04501;
+        }
+    </style>
+    {% endif %}
 
-<form action="/process_activities" method="post" enctype="multipart/form-data">
-    <table class="table table-striped" id="activities-table">
-        <thead>
-            <tr>
-                <th>Zaznacz</th>
-                {% if activities | length > 0 %}
-                <th>Nazwa aktywności</th>
-                <th>Data</th>
-                <th>Dystans (km)</th>
-                {% else %}
-                <th>Dystans (km)</th>
-                {% endif %}
-            </tr>
-        </thead>
-        <tbody>
-            {% if activities | length == 0 %}
-            <tr hidden="true"></tr>
+    <form action="/process_activities" method="post" enctype="multipart/form-data">
+        <table class="table table-striped" id="activities-table">
+            <thead>
+                <tr>
+                    <th>Zaznacz</th>
+                    {% if activities | length > 0 %}
+                    <th>Nazwa aktywności</th>
+                    <th>Data</th>
+                    <th>
+                        {% if activity_type == 'medytacja' %}
+                        Czas (min)
+                        {% elif activity_type == 'pompuj' %}
+                        Powtórzenia
+                        {% else %}
+                        Dystans (km)
+                        {% endif %}
+                    </th>
+                    {% else %}
+                    <th>
+                        {% if activity_type == 'medytacja' %}
+                        Czas (min)
+                        {% elif activity_type == 'pompuj' %}
+                        Powtórzenia
+                        {% else %}
+                        Dystans (km)
+                        {% endif %}
+                    </th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% if activities | length == 0 %}
+                <tr hidden="true"></tr>
             </tbody>
-            </table>
-            <button type="button" id="add-row-btn" class="btn btn-primary mt-3">Dodaj wiersz</button>
-            <button type="button" id="remove-row-btn" class="btn btn-danger mt-3">Usuń wiersz</button>
-            {% endif %}
-            {% for activity in activities %}
-            <tr>
-                <td><input type="checkbox" name="selected_activities" value="{{ activity.distance_km }}"></td>
-                <td>{{ activity.name }}</td>
-                <td>{{ activity.start_date }}</td>
-                <td>{{ activity.distance_km }}</td>
-            </tr>
-            {% endfor %}
+        </table>
+        <button type="button" id="add-row-btn" class="btn btn-primary mt-3">Dodaj wiersz</button>
+        <button type="button" id="remove-row-btn" class="btn btn-danger mt-3">Usuń wiersz</button>
+        {% endif %}
+        {% for activity in activities %}
+        <tr>
+            <td><input type="checkbox" name="selected_activities" value="{{ activity.distance_km }}"></td>
+            <td>{{ activity.name }}</td>
+            <td>{{ activity.start_date }}</td>
+            <td>{{ activity.distance_km }}</td>
+        </tr>
+        {% endfor %}
         </tbody>
-    </table>
-    <textarea name="notes" class="form-control" rows="3" placeholder="Add your notes here"></textarea>
-    <input type="hidden" value="{{ activity_type }}" name="activity_type" />
-    <input type="file" name="files" multiple class="form-control mt-3">
-    <button type="submit" class="btn btn-primary mt-3">Wyślij</button>
-</form>
+        </table>
+        <textarea name="notes" class="form-control" rows="3" placeholder="Add your notes here"></textarea>
+        <input type="hidden" value="{{ activity_type }}" name="activity_type" />
+        <input type="file" name="files" multiple class="form-control mt-3">
+        <button type="submit" class="btn btn-primary mt-3">Wyślij</button>
+    </form>
 
-<script>
-document.getElementById('add-row-btn').addEventListener('click', function() {
-    var table = document.getElementById('activities-table');
-    var lastRow = table.rows[table.rows.length - 1];
-    var rowIndex = lastRow.rowIndex;
-    var newRow = table.insertRow(-1);
-    var cell1 = newRow.insertCell(0);
-    var cell2 = newRow.insertCell(1);
-    cell1.innerHTML = '<input type="checkbox" name="selected_activities" value="0" checked="true">';
-    cell2.innerHTML = '<input type="number" name="distance_km" value="0" step=0.01 oninput="validateDistanceInput(event)">';
-    
-    cell2.querySelector('input').addEventListener('input', function(event) {
-    var checkbox = cell1.querySelector('input');
-    checkbox.value = this.value;
-  });
-});
+    <script>
+        document.getElementById('add-row-btn').addEventListener('click', function () {
+            var table = document.getElementById('activities-table');
+            var lastRow = table.rows[table.rows.length - 1];
+            var rowIndex = lastRow.rowIndex;
+            var newRow = table.insertRow(-1);
+            var cell1 = newRow.insertCell(0);
+            var cell2 = newRow.insertCell(1);
+            cell1.innerHTML = '<input type="checkbox" name="selected_activities" value="0" checked="true">';
 
-document.getElementById('remove-row-btn').addEventListener('click', function(event) {
-    var table = document.getElementById('activities-table');
-    var lastRow = table.rows[table.rows.length - 1];
-    table.deleteRow(lastRow.rowIndex);
-});
+            const activityType = '{{ activity_type }}';
+            if (activityType === 'medytacja') {
+                cell2.innerHTML = '<input type="number" name="distance_km" value="0" step="1" min="0" oninput="validateDistanceInput(event)" placeholder="Czas w minutach">';
+            } else if (activityType === 'pompuj') {
+                cell2.innerHTML = '<input type="number" name="distance_km" value="0" step="1" min="0" oninput="validateDistanceInput(event)" placeholder="Liczba powtórzeń">';
+            } else {
+                cell2.innerHTML = '<input type="number" name="distance_km" value="0" step="0.01" min="0" oninput="validateDistanceInput(event)" placeholder="Dystans w km">';
+            }
 
-</script>
-{% endblock %}
+            cell2.querySelector('input').addEventListener('input', function (event) {
+                var checkbox = cell1.querySelector('input');
+                checkbox.value = this.value;
+            });
+        });
+
+        document.getElementById('remove-row-btn').addEventListener('click', function (event) {
+            var table = document.getElementById('activities-table');
+            var lastRow = table.rows[table.rows.length - 1];
+            table.deleteRow(lastRow.rowIndex);
+        });
+
+    </script>
+    {% if activity_type not in ['sztafeta', 'rownik', 'spacer', 'pompuj', 'medytacja'] %}
+    <div class="alert alert-danger">Invalid activity type</div>
+    {% endif %}
+    {% endblock %}

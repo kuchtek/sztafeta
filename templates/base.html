@@ -1,6 +1,7 @@
 <!-- templates/base.html -->
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,26 +15,31 @@
             padding: 1rem;
             color: white;
         }
+
         .sidebar a {
             color: white;
             text-decoration: none;
         }
+
         .sidebar a:hover {
             text-decoration: underline;
-            color:crimson
+            color: crimson
         }
+
         .sidebar #logo {
             width: 100%;
             max-width: fit-content;
             display: inline-block;
         }
+
         .content {
             padding: 20px;
         }
-        
+
         .content-wrapper {
             flex: 1;
-            padding-bottom: 40px; /* Reserve space for footer */
+            padding-bottom: 40px;
+            /* Reserve space for footer */
         }
 
         .footer {
@@ -43,13 +49,16 @@
             padding: 20px;
             margin-top: auto;
         }
+
         .footer p {
             margin: 5px 0;
             font-size: 14px;
         }
+
         .footer .footer-links {
             margin: 10px 0;
         }
+
         .footer .footer-links a {
             color: #ffffff;
             text-decoration: none;
@@ -57,28 +66,33 @@
             padding: 2px;
             border-radius: 3px;
         }
+
         .footer .footer-links a:hover {
             text-decoration: underline;
             background-color: #054a67;
         }
+
         .sidebar .author-info {
             text-align: center;
             margin-top: auto;
             padding-top: 20px;
             border-top: 1px solid #054a67;
         }
+
         .sidebar .author-info p {
             margin: 5px 0;
             font-size: 14px;
         }
     </style>
 </head>
+
 <body>
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
             <div class="col-md-3 sidebar">
-                <img src="{{ url_for('static', filename='sztafeta.png') }}" alt="Menu Image" class="menu-img" width="60%" id="logo">
+                <img src="{{ url_for('static', filename='sztafeta.png') }}" alt="Menu Image" class="menu-img"
+                    width="60%" id="logo">
                 <h2>Hejto Sztafeta</h2>
                 <ul class="nav flex-column">
                     <li class="nav-item">
@@ -93,7 +107,13 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/activity/spacer">Aktywności #ksiezycowyspacer</a>
                     </li>
+                    <li class="nav-item"></li>
+                    <a class="nav-link" href="/activity/pompuj">Aktywności #pompujwpoprzekziemi</a>
+                    </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="/activity/medytacja">Aktywności #rokmedytacji</a>
+                    </li>
+                    <!-- <li class="nav-item">
                         <a class="nav-link" href="/ranking/sztafeta">Ranking #sztafeta</a>
                     </li>
                     <li class="nav-item">
@@ -102,6 +122,12 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/ranking/spacer">Ranking #ksiezycowyspacer</a>
                     </li>
+                    <li class="nav-item"></li>
+                    <a class="nav-link" href="/ranking/pompuj">Ranking #pompujwpoprzekziemi</a>
+                    </li>
+                    <li class="nav-item"></li>
+                    <a class="nav-link" href="/ranking/medytacja">Ranking #rokmedytacji</a>
+                    </li> -->
                 </ul>
                 <div class="author-info">
                     <p>Created by: mkbiega</p>
@@ -117,7 +143,8 @@
             </div>
         </div>
     </div>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

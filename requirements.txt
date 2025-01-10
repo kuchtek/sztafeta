@@ -3,3 +3,5 @@ requests==2.32.3
 python-dotenv==1.0.1
 gunicorn==22.0.0
 json-logging
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9  # For PostgreSQL support
