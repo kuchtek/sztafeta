@@ -6,6 +6,8 @@ services:
             context: .
         ports:
             -  "8888"
+        volumes:
+            - ./data:/sztafeta/data_collector
     nginx: 
         image: nginx:latest
         volumes:
@@ -14,3 +16,15 @@ services:
         - sztafeta
         ports:
         - "21298:80"
+
+    data_collector:
+        image: data_collector:0.1-
+        build:
+            context: ./microservice
+        volumes:
+            - ./data:/data_collector/data
+        deploy:
+            restart_policy:
+                condition: any
+            update_config:
+                delay: 5m

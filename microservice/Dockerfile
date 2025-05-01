@@ -1,6 +1,6 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
-WORKDIR /microservice
+WORKDIR /data_collector
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -12,17 +12,14 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create directory for SQLite database
-RUN mkdir -p /microservice/data
-
 # Copy only the necessary files
 COPY data_collector.py .
 COPY .env .
 
 # Set environment variables
-ENV PYTHONPATH=/microservice
+ENV PYTHONPATH=/data_collector
 ENV DB_TYPE=sqlite
-ENV DATABASE_URL=sqlite:///data/running_stats.db
+ENV DATABASE_URL=sqlite:///data_collector/data/hejto_posts.db
 
 # Run the collector
 CMD ["python", "data_collector.py"]
