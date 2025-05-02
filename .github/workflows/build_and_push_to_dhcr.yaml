@@ -73,8 +73,8 @@ jobs:
       - name: Build and push collector image
         uses: docker/build-push-action@v4
         with:
-          context: .
-          file: ./microservice/Dockerfile
+          context: ./microservice
+          file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build-images') }}
           tags: ${{ steps.meta-collector.outputs.tags }}
           labels: ${{ steps.meta-collector.outputs.labels }}
