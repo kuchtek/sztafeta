@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy only the necessary files
 COPY data_collector.py .
-COPY .env .
+# COPY .env .
 
 # Set environment variables
 ENV PYTHONPATH=/data_collector
