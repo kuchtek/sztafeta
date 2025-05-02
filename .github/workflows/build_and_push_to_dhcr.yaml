@@ -94,8 +94,8 @@ jobs:
           echo ${{ steps.semantic.outputs.new_release_version }}
 
     outputs:
-      new_release: ${{ steps.semantic.outputs.new_release_published }}
-      new_version: ${{ steps.semantic.outputs.new_release_version }}
+      new_release: ${{ steps.semantic.outputs.new_release_published != '' && steps.semantic.outputs.new_release_published || '0.4' }}
+      new_version: ${{ steps.semantic.outputs.new_release_version != '' && steps.semantic.outputs.new_release_version || '0.5' }}
   build-push:
     runs-on: ubuntu-latest
     needs: [tag_version]
