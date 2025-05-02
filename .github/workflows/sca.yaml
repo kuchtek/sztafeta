@@ -1,4 +1,3 @@
-# .github/workflows/sca.yml
 name: Software Composition Analysis
 
 on:

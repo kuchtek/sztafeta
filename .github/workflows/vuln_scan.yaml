@@ -1,4 +1,3 @@
-# .github/workflows/image-scan.yml
 name: Docker Image Vulnerability Scan
 
 on:
