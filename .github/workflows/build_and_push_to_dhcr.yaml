@@ -19,8 +19,86 @@ env:
   COLLECTOR_IMAGE_NAME: ${{ github.repository }}/collector
 
 jobs:
+  check_version_number:
+    name: check version number
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # to be able to publish a GitHub release
+      issues: write  # to be able to comment on released issues
+      pull-requests: write  # to be able to comment on released pull requests
+    outputs:
+      new_release_published: ${{ steps.semantic_dry.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic_dry.outputs.new_release_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get semantic release version
+        uses: cycjimmy/semantic-release-action@v3
+        id: semantic_dry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          dry_run: true
+          branches: |
+            [
+              "+([0-9])?(.{+([0-9]),x}).x",
+              "main"
+            ]
+          extends: |
+            conventional-changelog-conventionalcommits@6.1.0
+          extra_plugins: |
+            @semantic-release/commit-analyzer@9.0.2
+            @semantic-release/release-notes-generator@10.0.3
+            @semantic-release/github@8.0.7
+            @semantic-release/changelog@6.0.2
+            @semantic-release/exec@6.0.3
+            @semantic-release/git@10.0.1
+  tag_version:
+    name: release
+    needs: [check_version_number]
+    permissions:
+      contents: write  # to be able to publish a GitHub release
+      issues: write  # to be able to comment on released issues
+      pull-requests: write  # to be able to comment on released pull requests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # make sure the release step uses its own credentials
+      - name: Semantic Release
+        uses: cycjimmy/semantic-release-action@v3
+        id: semantic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          semantic_version: 19
+          branches: |
+            [
+              "+([0-9])?(.{+([0-9]),x}).x",
+              "main"
+            ]
+          extends: |
+            conventional-changelog-conventionalcommits@6.1.0
+          extra_plugins: |
+            @semantic-release/commit-analyzer@9.0.2
+            @semantic-release/release-notes-generator@10.0.3
+            @semantic-release/github@8.0.7
+            @semantic-release/changelog@6.0.2
+            @semantic-release/exec@6.0.3
+            @semantic-release/git@10.0.1
+
+      - name: Changelog version
+        if: steps.semantic.outputs.new_release_published == 'true'
+        run: |
+          echo ${{ steps.semantic.outputs.new_release_version }}
+
+    outputs:
+      new_release: ${{ steps.semantic.outputs.new_release_published }}
+      new_version: ${{ steps.semantic.outputs.new_release_version }}
   build-push:
     runs-on: ubuntu-latest
+    needs: [tag_version]
     permissions:
       contents: read
       packages: write
@@ -33,7 +111,7 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Set up Docker Buildx
@@ -55,10 +133,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.COLLECTOR_IMAGE_NAME }}
           tags: |
-            type=sha,format=short
-            type=ref,event=branch
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-      
+            type=raw,value=latest
+            type=sha
+            type=sha,format=long
+            type=semver,pattern={{version}},value=${{ steps.semantic.outputs.new_release_version }}
+
       - name: Build and push webapp image
         uses: docker/build-push-action@v4
         with:
@@ -80,3 +159,16 @@ jobs:
           labels: ${{ steps.meta-collector.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Release Update - ${{ steps.semantic.outputs.new_release_version }}
+        uses: softprops/action-gh-release@v1
+        if: success()
+        env:
+            REGISTRY: ${{ env.REGISTRY }}
+            REPOSITORY: ${{ env.REPOSITORY }}
+        with:
+          tag_name: "v${{ steps.semantic.outputs.new_release_version }}"
+          append_body: true
+          body: |
+            - Github Packages Container URL: ${{ env.REGISTRY }}/${{ github.repository }}:${{ steps.semantic.outputs.new_release_version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
