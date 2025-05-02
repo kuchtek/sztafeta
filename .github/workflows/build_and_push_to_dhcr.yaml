@@ -137,7 +137,14 @@ jobs:
             type=sha
             type=sha,format=long
             type=semver,pattern={{version}},value=${{ steps.semantic.outputs.new_release_version }}
-
+      - name: Prepare env variables
+        run: |
+          echo 'URI="https://hejto.sztafetastat.eu"' >> .env
+          echo 'CLIENT_ID="${{ secrets.CLIENT_ID }}"' >> .env
+          echo 'CLIENT_SECRET="${{ secrets.CLIENT_SECRET }}"' >> .env
+          echo 'STRAVA_CLIENT_ID="${{ secrets.STRAVA_CLIENT_ID }}"' >> .env
+          echo 'STRAVA_CLIENT_SECRET="${{ secrets.STRAVA_CLIENT_SECRET }}"' >> .env
+          echo 'FLASK_SECRET_KEY="${{ secrets.FLASK_SECRET_KEY }}"' >> .env
       - name: Build and push webapp image
         uses: docker/build-push-action@v4
         with:

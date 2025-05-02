@@ -1,9 +1,7 @@
 version: "3"
 services:
     sztafeta:
-        image: sztafeta:0.3-min
-        build:
-            context: .
+        image: ghcr.io/kuchtek/sztafeta/webapp:latest
         ports:
             -  "8888"
         volumes:
@@ -18,9 +16,7 @@ services:
         - "21298:80"
 
     data_collector:
-        image: data_collector:0.1-
-        build:
-            context: ./microservice
+        image: ghcr.io/kuchtek/sztafeta/collector:latest
         volumes:
             - ./data:/data_collector/data
         deploy:
