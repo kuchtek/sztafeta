@@ -1,7 +1,6 @@
 ---
 name: Deploy Sztafeta To VPS
 on:
-    push:
     pull_request:
     workflow_dispatch:
 env:
