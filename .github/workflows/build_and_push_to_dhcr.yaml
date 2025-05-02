@@ -123,10 +123,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.WEBAPP_IMAGE_NAME }}
           tags: |
-            type=sha,format=short
-            type=ref,event=branch
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-      
+            type=raw,value=latest
+            type=sha
+            type=sha,format=long
+            type=semver,pattern={{version}},value=${{ steps.semantic.outputs.new_release_version }}
       - name: Extract collector metadata
         id: meta-collector
         uses: docker/metadata-action@v4
