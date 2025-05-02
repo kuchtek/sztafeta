@@ -5,7 +5,18 @@
 
 {% block content %}
 <div class="container mt-4">
+    {% switch selected_community %}
+    {% case 'sztafeta' %}
     <h1>Sztafeta - Ranking & Statystyki</h1>
+    {% case 'pompuj' %}
+    <h1>Pompuj w poprzek ziemi - Ranking & Statystyki</h1>
+    {% case 'rowerowy-rownik' %}
+    <h1>Rowerowy Rownik - Ranking & Statystyki</h1>
+    {% case ''ksiezycowy-spacer' %}
+    <h1>Spacer - Ranking & Statystyki</h1>
+    {% case 'rok-medytacji' %}
+    <h1>Rok Medytacji - Ranking & Statystyki</h1>
+    {% endswitch %}
 
     <!-- Filters -->
     <form id="rankingForm" method="GET" action="{{ url_for('show_rankings', community=selected_community) }}"
