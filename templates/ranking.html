@@ -5,159 +5,271 @@
 
 {% block content %}
 <div class="container mt-4">
-    <!-- Overall Statistics -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h2>Overall Runner Statistics</h2>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Runner</th>
-                                <th>Total Distance</th>
-                                <th>Total Runs</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for stat in overall_stats %}
-                            <tr>
-                                <td>{{ stat.author }}</td>
-                                <td>{{ stat.total_distance }} km</td>
-                                <td>{{ stat.total_runs }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <div class="col-md-6">
-                    <canvas id="overallChart"></canvas>
-                </div>
+    {% if selected_community == 'sztafeta' %}
+    <h1>Sztafeta - Ranking & Statystyki</h1>
+    {% elif selected_community == 'pompuj' %}
+    <h1>Pompuj w poprzek ziemi - Ranking & Statystyki</h1>
+    {% elif selected_community == 'rowerowy-rownik' %}
+    <h1>Rowerowy Rownik - Ranking & Statystyki</h1>
+    {% elif selected_community == 'ksiezycowy-spacer' %}
+    <h1>Spacer - Ranking & Statystyki</h1>
+    {% elif selected_community == 'rok-medytacji' %}
+    <h1>Rok Medytacji - Ranking & Statystyki</h1>
+    {% else %}
+    {# Optional: Default title if community doesn't match #}
+    <h1>Ranking & Statystyki</h1>
+    {% endif %}
+
+    <!-- Filters -->
+    <form id="rankingForm" method="GET" action="{{ url_for('show_rankings', community=selected_community) }}"
+        class="mb-4">
+        <div class="row g-3 align-items-center">
+            <div class="col-auto">
+                <label for="yearSelect" class="col-form-label">Rok:</label>
+            </div>
+            <div class="col-auto">
+                <select name="year" id="yearSelect" class="form-select" onchange="this.form.submit()">
+                    {% for year in available_years %}
+                    <option value="{{ year }}" {% if year==selected_year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label for="monthSelect" class="col-form-label">Miesiąc (dla rankingu miesięcznego):</label>
+            </div>
+            <div class="col-auto">
+                <select name="month" id="monthSelect" class="form-select" onchange="this.form.submit()">
+                    {% set month_names = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec",
+                    "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"] %}
+                    {% for month_num in range(1, 13) %}
+                    <option value="{{ month_num }}" {% if month_num==selected_month %}selected{% endif %}>{{
+                        month_names[month_num-1] }}</option>
+                    {% endfor %}
+                </select>
             </div>
         </div>
-    </div>
+    </form>
 
-    <!-- Current Week and Month -->
-    <div class="row">
-        <!-- Current Week -->
-        <div class="col-md-6">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3>Current Week</h3>
-                </div>
-                <div class="card-body">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Runner</th>
-                                <th>Distance</th>
-                                <th>Runs</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for stat in current_week_stats %}
-                            <tr>
-                                <td>{{ stat.author }}</td>
-                                <td>{{ stat.total_distance }} km</td>
-                                <td>{{ stat.total_runs }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+    <!-- Content wrapper - we'll update this with AJAX -->
+    <div id="rankings-content">
+
+        <!-- 1. Weekly Progress Chart -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3>Tygodniowy Progres Społeczności - {{ selected_year }}</h3>
+            </div>
+            <div class="card-body">
+                <canvas id="weeklyProgressChart"></canvas>
             </div>
         </div>
 
-        <!-- Current Month -->
-        <div class="col-md-6">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3>Current Month</h3>
-                </div>
-                <div class="card-body">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Runner</th>
-                                <th>Distance</th>
-                                <th>Runs</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for stat in current_month_stats %}
-                            <tr>
-                                <td>{{ stat.author }}</td>
-                                <td>{{ stat.total_distance }} km</td>
-                                <td>{{ stat.total_runs }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        <!-- 2. Monthly Runner Ranking -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3>Ranking Miesięczny - {{ month_names[selected_month-1] }} {{ selected_year }}</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Zawodnik</th>
+                            <th>Całkowit{% if selected_community == 'pompuj' %}a ilość powtórzeń
+                                {% elif selected_community == 'rok-medytacji' %}a ilość minut
+                                {% else %}y pokonany dystans
+                                {% endif %}
+                            </th>
+                            <th>Liczba Aktywności</th>
+                            <th>Średni{% if selected_community == 'pompuj' %}a ilość powtórzeń
+                                {% elif selected_community == 'rok-medytacji' %}a ilość minut
+                                {% else %} pokonany dystans
+                                {% endif %}/ aktywność
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in monthly_ranking %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ stat.author }}</td>
+                            {% if selected_community == 'pompuj' %}
+                            <td>{{ "%d"|format(stat.total_distance) }}</td>
+                            {% elif selected_community == 'rok-medytacji' %}
+                            <td>{{ "%d"|format(stat.total_distance) }}min</td>
+                            {% elif selected_community == 'rowerowy-rownik' %}
+                            <td>{{ "%d"|format(stat.total_distance) }}km</td>
+                            {% else %}
+                            <td>{{ "%.2f"|format(stat.total_distance) }}km</td>
+                            {% endif %}
+                            <td>{{ stat.total_runs }}</td>
+                            <td>{{ "%.2f"|format(stat.average_distance_per_run) }}
+                                {% if selected_community == 'pompuj' %}
+                                {% elif selected_community == 'rok-medytacji' %}
+                                min
+                                {% else %}
+                                km
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center">Brak danych dla wybranego miesiąca i roku.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
-    </div>
 
-    <!-- Monthly Community Progress -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h3>Community Monthly Progress</h3>
+        <!-- 3. Yearly Runner Ranking -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3>Ranking Roczny - {{ selected_year }}</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Zawodnik</th>
+                            <th>Całkowity wynik
+                                {% if selected_community == 'pompuj' %}
+                                {% elif selected_community == 'rok-medytacji' %}
+                                (min)
+                                {% else %}
+                                (km)
+                                {% endif %}
+                            </th>
+                            <th>Liczba Aktywności</th>
+                            <th>Śr. Dystans / Aktywność
+                                {% if selected_community == 'pompuj' %}
+                                (powtórzenia)
+                                {% elif selected_community == 'rok-medytacji' %}
+                                (min)
+                                {% else %}
+                                (km)
+                                {% endif %}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in yearly_ranking %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ stat.author }}</td>
+                            {% if selected_community == 'pompuj' %}
+                            <td>{{ "%d"|format(stat.total_distance) }}</td>
+                            {% elif selected_community == 'rok-medytacji' %}
+                            <td>{{ "%d"|format(stat.total_distance) }}min</td>
+                            {% elif selected_community == 'rowerowy-rownik' %}
+                            <td>{{ "%d"|format(stat.total_distance) }}km</td>
+                            {% else %}
+                            <td>{{ "%.2f"|format(stat.total_distance) }}km</td>
+                            {% endif %}
+                            <td>{{ stat.total_runs }}</td>
+                            <td>{{ "%.2f"|format(stat.average_distance_per_run) }}
+                                {% if selected_community == 'pompuj' %}
+                                reps
+                                {% elif selected_community == 'rok-medytacji' %}
+                                min
+                                {% else %}
+                                km
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center">Brak danych dla wybranego roku.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div class="card-body">
-            <canvas id="monthlyProgressChart"></canvas>
-        </div>
-    </div>
+    </div> <!-- End of rankings-content div -->
 </div>
 
+<!-- Include Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Overall Statistics Chart
-    const overallCtx = document.getElementById('overallChart').getContext('2d');
-    new Chart(overallCtx, {
-        type: 'bar',
-        data: {
-            labels: {{ overall_stats | map(attribute='author') | list | tojson }},
-            datasets: [{
-                label: 'Total Distance (km)',
-                data: {{ overall_stats | map(attribute='total_distance') | list | tojson }},
-                backgroundColor: 'rgba(54, 162, 235, 0.5)'
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
+    document.addEventListener('DOMContentLoaded', function () {
+        // Get the chart data from Flask template - fix the syntax
+        const weeklyLabels = JSON.parse('{{ weekly_chart_labels | safe }}');
+        const weeklyValues = JSON.parse('{{ weekly_chart_values | safe }}');
+
+        // Initialize the chart
+        createChart(weeklyLabels, weeklyValues);
     });
 
-    // Monthly Progress Chart
-    const monthlyCtx = document.getElementById('monthlyProgressChart').getContext('2d');
-    const monthlyData = {{ monthly_stats | tojson }};
-    new Chart(monthlyCtx, {
-        type: 'line',
-        data: {
-            labels: monthlyData.map(d => `${d.year}-${d.month}`),
-            datasets: [{
-                label: 'Total Distance (km)',
-                data: monthlyData.map(d => d.total_distance),
-                borderColor: 'rgb(75, 192, 192)',
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
+    // Function to create the weekly chart
+    function createChart(labels, values) {
+        // Check if we have a valid canvas
+        const canvas = document.getElementById('weeklyProgressChart');
+        if (!canvas) {
+            console.error('Weekly chart canvas not found');
+            return;
         }
-    });
+
+        // Clear any existing chart
+        const oldChart = Chart.getChart('weeklyProgressChart');
+        if (oldChart) {
+            oldChart.destroy();
+        }
+
+        // Get the context
+        const ctx = canvas.getContext('2d');
+
+        // Create the chart if we have data
+        if (labels && labels.length > 0 && values && values.length > 0) {
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Całkowit{% if selected_community == "pompuj" %}a ilość powtórzeń{% elif selected_community == "rok-medytacji" %}a ilość min{% else %}y dystans km{% endif %}',
+                        data: values,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '{% if selected_community == "pompuj" %}Powtórzenia{% elif selected_community == "rok-medytacji" %}Minuty{% else %}Kilometry{% endif %}'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Tydzień Roku'
+                            },
+                            ticks: {
+                                autoSkip: true,
+                                maxTicksLimit: 20
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    }
+                }
+            });
+        } else {
+            // Display a message if no data
+            ctx.font = "16px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("Brak danych tygodniowych dla wybranego roku.", canvas.width / 2, canvas.height / 2);
+        }
+    }
 </script>
 {% endblock %}
-

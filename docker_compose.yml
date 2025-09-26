@@ -1,11 +1,11 @@
 version: "3"
 services:
     sztafeta:
-        image: sztafeta:0.3-min
-        build:
-            context: .
+        image: ghcr.io/kuchtek/sztafeta/webapp:latest
         ports:
             -  "8888"
+        volumes:
+            - ./data:/sztafeta/data_collector
     nginx: 
         image: nginx:latest
         volumes:
@@ -14,3 +14,13 @@ services:
         - sztafeta
         ports:
         - "21298:80"
+
+    data_collector:
+        image: ghcr.io/kuchtek/sztafeta/collector:latest
+        volumes:
+            - ./data:/data_collector/data
+        deploy:
+            restart_policy:
+                condition: any
+            update_config:
+                delay: 5m

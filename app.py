@@ -11,6 +11,13 @@ import logging
 from flask import flash
 from microservice import HejtoDataCollector
 
+# --- Database Imports ---
+from sqlalchemy import create_engine, desc, asc, extract
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql import func # Although func might not be directly used here, good to have
+from microservice.data_collector import Base, COMMUNITY_MODELS, COMMUNITIES_TO_PROCESS
+# --- End Database Imports ---
+
 #----------------------- APP CONFIG -----------------------
 app = Flask(__name__)
 app.logger.addHandler(logging.StreamHandler())
@@ -18,6 +25,35 @@ app.logger.setLevel(logging.INFO)
 load_dotenv()
 app.secret_key = os.environ.get('FLASK_SECRET_KEY')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+
+# --- Database Setup ---
+# Use the same DB URL logic as in data_collector
+DB_TYPE_APP = os.getenv('DB_TYPE', 'sqlite')
+if DB_TYPE_APP == 'postgresql':
+    DB_URL_APP = os.getenv('DATABASE_URL', './data_collector/hejto_posts.db')
+else:
+    # IMPORTANT: Ensure this path points correctly relative to where app.py is run
+    # If app.py is in the root, this path should be 'microservice/hejto_posts.db'
+    db_path = 'data_collector/hejto_posts.db' 
+    if not os.path.isabs(db_path):
+        db_path = os.path.join(os.path.dirname(__file__), db_path)
+    DB_URL_APP = f'sqlite:///{db_path}'
+
+engine = create_engine(DB_URL_APP)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Ensure tables exist (optional here, as collector should create them)
+# Base.metadata.create_all(bind=engine)
+
+# Dependency to get DB session in routes
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+# --- End Database Setup ---
+
 #--------------------- ENVIROMENT VARIABLES -----------------------
 URI = os.environ.get('URI')
 CLIENT_ID = os.environ.get('CLIENT_ID')
@@ -34,6 +70,17 @@ def inject_footer_data():
         'current_date': '2025',
         'app_version': '0.4'
     }
+
+#--------------------- HELPER FUNCTION -----------------------
+def get_models_for_community(community: str) -> dict:
+    """Get the model classes for a given community name (app-side)."""
+    models = COMMUNITY_MODELS.get(community)
+    if not models:
+        # Handle invalid community name - maybe raise an error or return None
+        # For now, let's raise ValueError, which Flask can catch as 500 or we can handle specifically
+        raise ValueError(f"Invalid community requested: {community}")
+    return models
+
 #--------------------- HEJTO ROUTES -----------------------
 @app.route('/')
 def login():
@@ -100,6 +147,16 @@ def refresh_session_token():
             app.logger.error("Failed to refresh session token: {}".format(e))
     return False
 
+def _is_session_valid():
+    """Check if current session tokens are valid."""
+    if 'access_token' not in session or 'token_expiry' not in session:
+        return False
+
+    if datetime.now() > datetime.fromisoformat(session['token_expiry']):
+        return refresh_session_token()
+        
+    return True
+
 # @app.before_request
 # def check_session_token():
 #     if 'access_token' not in session or session['access_token'] is None:
@@ -131,18 +188,19 @@ def get_hejto_token(client_id, client_secret, authorization_code):
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code == 200:
         token_data = response.json()
+        expiry = datetime.now() + timedelta(seconds=token_data.get('expires_in', 3600))
+        session['token_expiry'] = expiry.isoformat()
         return token_data.get('access_token'), token_data.get('refresh_token')
     else:
         app.logger.error("Something goes wrong")
         raise Exception(f"Failed to retrieve token: {response.status_code} {response.text}")
     
 @app.route('/activity/<string:activity_type>')
-@app.route('/activity/')
+@app.route('/activity')
 def fetch_athlete_activities(activity_type=None):
     app.logger.debug("Activity type: {}".format(activity_type))
-    if 'access_token' not in session.keys():
-        app.logger.error("Access token not found in session")
-        print(session.keys())
+    if not _is_session_valid():
+        session.clear()
         return redirect(url_for('login'))
     if activity_type == None:
         app.logger.debug("nic tu nie ma")
@@ -207,7 +265,8 @@ def get_last_distance(community):
                 first_line = unicodedata.normalize("NFKD", content_plain.splitlines()[0])
                 app.logger.info("Get first line: " + first_line)
                 # Check if the line matches the required format
-                
+                if '=' not in first_line:
+                    continue
                 regex_pattern = r'\b\d+(?: \d{3})*(?:,\d+)?\b'
                 distances = re.findall(regex_pattern, first_line)
                 if distances:
@@ -225,6 +284,12 @@ def get_last_distance(community):
                         if match:
                             initial_number = match.group(1)
                             return str(initial_number.replace(' ', '').replace(',', '.'))
+                    elif community == 'rowerowy-rownik':
+                        regex_pattern = r'\b\d{1,3}(?: \d{3})*(?:,\d+)?\b'
+                        distances = re.findall(regex_pattern, line)
+                        if distances:
+                            distance_str = distances[-1].replace(' ', '')
+                            return str(distance_str.replace(',', '.'))
                     else:
                         regex_pattern = r'\b\d{1,3}(?: \d{3})*(?:,\d+)?\b'
                         distances = re.findall(regex_pattern, line)
@@ -288,7 +353,7 @@ def process_activities():
     app.logger.debug("Total distance: " + str(total_distance))
     # czas na pobranie notatek, obrazków
     notes = request.form.get("notes")
-    str_builder += f"\n {notes} \n Wpis dodany za pomocą https://hejto.sztafetastat.eu \n {tag_community}"
+    str_builder += f"\n\n{notes}\n\nWpis dodany za pomocą https://hejto.sztafetastat.eu\n\n{tag_community}"
     if(community in ['ksiezycowy-spacer', 'sport', 'rozwoj']):
         str_builder = str_builder.replace('+','-')
     files = request.files.getlist('files')
@@ -312,7 +377,6 @@ def process_activities():
         print(f"Failed to create post: {response.status_code} {response.text}")
         raise Exception(f"Failed to create post: {response.status_code} {response.text}")
 
-
 def upload_image(file):
     url = 'https://api.hejto.pl/uploads'  # Endpoint do uploadu obrazĂłw
     access_token = session['access_token']
@@ -327,8 +391,6 @@ def upload_image(file):
         return response.json().get('uuid')  # UUID otrzymane od Hejto
     else:
         raise Exception(f"Failed to upload image: {response.status_code} {response.text}")
-
-
 
 def create_post(content, images=None, nsfw=False, community='sztafeta'):
     try:
@@ -358,121 +420,153 @@ def create_post(content, images=None, nsfw=False, community='sztafeta'):
         app.logger.info(f"Error in create_post: {str(e)}")
         raise
 
-
-def fetch_community_posts(access_token, limit=50, community=None):
-    if community is None:
-        render_template("error.html", error_code=404, error_msg="Nie znaleziono strony")
-    url = "https://api.hejto.pl/posts"
-    params = {
-        "community": community,
-        "limit": limit
-    }
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
-    
-    response = requests.get(url, headers=headers, params=params)
-    response.raise_for_status()
-    
-    return response.json()["_embedded"]["items"]
-
-def extract_distance_from_post(content):
-    content = unicodedata.normalize("NFKD", content) # remove \xa0
-    app.logger.debug(content)
-    # calculated_distance=0.0
-    content = re.sub(r'^\d{1,3}(?:[ ]\d{3})*(?:[.,]\d+)?\s*', '', content)
-    content = re.sub(r'\s*=\s*.*$', '', content)
-    pattern = re.compile(r'[+-]\s*(\d{1,3}(?:[ ]\d{3})*(?:[.,]\d+)?)')
-    matches = pattern.findall(content)
-    distances = [float(num.replace(' ', '').replace(',', '.')) for num in matches]
-    app.logger.debug(distances)
-    return distances
-
-def extract_user_distances(posts):
-    user_distances = {}
-    for post in posts:
-        username = post["author"]["username"]
-        content = post["content_plain"]
-        distances = extract_distance_from_post(content)
-        created_at = datetime.strptime(post["created_at"], '%Y-%m-%dT%H:%M:%S%z')
-
-        if username not in user_distances:
-            user_distances[username] = []
-
-        user_distances[username].append({"distance": distances, "created_at": created_at})
-    return user_distances
-
-def aggregate_distances(user_distances):
-    user_aggregated = defaultdict(lambda: {"week": 0.0, "month": 0.0, "year": 0.0, "week_count": 0, "month_count": 0, "year_count": 0, "week_mean": 0.0, "month_mean": 0.0, "year_mean": 0.0})
-    # user_aggregated = defaultdict(lambda: {"week": 0.0, "month": 0.0, "year": 0.0})
-    from datetime import datetime
-    now = datetime.now().astimezone()  # Make `now` timezone-aware
-    week_start = now - timedelta(days=now.weekday())
-    month_start = now.replace(day=1)
-    year_start = now.replace(month=1, day=1)
-
-    for username, activities in user_distances.items():
-        week_total_distance = 0.0
-        month_total_distance = 0.0
-        year_total_distance = 0.0
-        week_count = 0
-        month_count = 0
-        year_count = 0
-        for activity in activities:
-            app.logger.debug(activity)
-            if not isinstance(activity['distance'], list):
-                activity['distance'] = [activity['distance']]
-            if activity["created_at"] >= week_start:
-                user_aggregated[username]["week"] += sum(activity["distance"])
-                week_total_distance += sum(activity["distance"])
-                week_count += len(activity["distance"])
-            if activity["created_at"] >= month_start:
-                user_aggregated[username]["month"] += sum(activity["distance"])
-                month_total_distance += sum(activity["distance"])
-                month_count += len(activity["distance"])
-            if activity["created_at"] >= year_start:
-                user_aggregated[username]["year"] += sum(activity["distance"])
-                year_total_distance += sum(activity["distance"])
-                year_count += len(activity["distance"])
-        if week_count > 0:
-            user_aggregated[username]["week_mean"] = week_total_distance / week_count
-        else:
-            user_aggregated[username]["week_mean"] = 0
-        if month_count > 0:
-            user_aggregated[username]["month_mean"] = month_total_distance / month_count
-        else:
-            user_aggregated[username]["month_mean"] = 0
-        if year_count > 0:
-            user_aggregated[username]["year_mean"] = year_total_distance / year_count
-        else:
-            user_aggregated[username]["year_mean"] = 0
-        user_aggregated[username]["week_count"] = week_count
-        user_aggregated[username]["month_count"] = month_count
-        user_aggregated[username]["year_count"] = year_count
-    return user_aggregated
-
-def generate_ranking(user_aggregated):
-    ranking = {
-        "week": sorted(user_aggregated.items(), key=lambda x: x[1]["week"], reverse=True),
-        "month": sorted(user_aggregated.items(), key=lambda x: x[1]["month"], reverse=True),
-        "year": sorted(user_aggregated.items(), key=lambda x: x[1]["year"], reverse=True),
-    }
-    return ranking
+#--------------------- RANKING ROUTES -----------------------
+@app.route('/ranking')
+def default_ranking():
+    """Redirects to the default community ranking (e.g., Sztafeta)."""
+    default_community = COMMUNITIES_TO_PROCESS[0] if COMMUNITIES_TO_PROCESS else 'Sztafeta' # Fallback
+    return redirect(url_for('show_rankings', community=default_community))
 
 @app.route('/ranking/<string:community>')
-def ranking(community):
-    collector = HejtoDataCollector()
-    
-    overall_stats = collector.get_overall_stats()
-    current_week_stats = collector.get_current_week_stats()
-    current_month_stats = collector.get_current_month_stats()
-    monthly_stats = collector.get_monthly_community_stats()
-    
-    return render_template('ranking.html',
-                         overall_stats=overall_stats,
-                         current_week_stats=current_week_stats,
-                         current_month_stats=current_month_stats,
-                         monthly_stats=monthly_stats)
+def show_rankings(community: str):
+    """Display rankings for a specific community."""
+    if community not in COMMUNITIES_TO_PROCESS:
+        return render_template('error.html', message="Nieprawidłowa społeczność"), 404
+    db = None # Initialize db to None
+    try:
+        db = next(get_db()) # Get DB session
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+
+        # --- Validate Community and Get Models ---
+        # try:
+        models = get_models_for_community(community)
+        WeeklySummaryModel = models['WeeklySummary']
+        RunnerMonthlyStatsModel = models['RunnerMonthlyStats']
+        RunnerYearlyStatsModel = models['RunnerYearlyStats']
+        # except ValueError as e:
+        #     app.logger.error(f"Error getting models for community '{community}': {e}")
+        #     return render_template('error.html', message=str(e)), 404
+        # except Exception as e:
+        #     app.logger.error(f"Unexpected error getting models for community '{community}': {e}", exc_info=True)
+        #     return render_template('error.html', message="Internal server error retrieving community data."), 500
+
+        # --- Get Filter Values --- 
+        selected_year = request.args.get('year', default=current_year, type=int)
+        selected_month = request.args.get('month', default=current_month, type=int)
+
+        # --- Get Available Years/Months for Filters (Query specific community tables) --- 
+        available_years = [current_year] # Default
+        available_months = list(range(1, 13)) # Default
+        # try:
+        available_years_query = db.query(RunnerYearlyStatsModel.year).distinct().order_by(desc(RunnerYearlyStatsModel.year))
+        years_result = [y[0] for y in available_years_query.all()]
+        if years_result:
+            available_years = years_result
+
+        available_months_query = db.query(RunnerMonthlyStatsModel.month).filter(RunnerMonthlyStatsModel.year == selected_year).distinct().order_by(asc(RunnerMonthlyStatsModel.month))
+        months_result = [m[0] for m in available_months_query.all()]
+        # We pass all months to the template, but this tells us which have data (could be used later)
+        # except Exception as e:
+        #     app.logger.error(f"Error querying available years/months for '{community}': {e}", exc_info=True)
+        #     # Continue with default filters, but log the error
+
+        # --- Query Data --- 
+        weekly_summary_data = []
+        monthly_ranking_data = []
+        yearly_ranking_data = []
+        # try:
+            # 1. Weekly Summary Data
+        weekly_summary_query = db.query(WeeklySummaryModel).filter(
+            WeeklySummaryModel.year == selected_year
+        ).order_by(asc(WeeklySummaryModel.week_number))
+        weekly_summary_data = weekly_summary_query.all()
+        weekly_chart_labels = [f"Tydzień {w.week_number}" for w in weekly_summary_data]
+        weekly_chart_values = [round(w.total_distance, 2) for w in weekly_summary_data]
+
+            # 2. Monthly Ranking Data
+        monthly_ranking_query = db.query(RunnerMonthlyStatsModel).filter(
+            RunnerMonthlyStatsModel.year == selected_year,
+            RunnerMonthlyStatsModel.month == selected_month
+        ).order_by(desc(RunnerMonthlyStatsModel.total_distance))
+        monthly_ranking_data = monthly_ranking_query.all()
+
+            # 3. Yearly Ranking Data
+        yearly_ranking_query = db.query(RunnerYearlyStatsModel).filter(
+            RunnerYearlyStatsModel.year == selected_year
+        ).order_by(desc(RunnerYearlyStatsModel.total_distance))
+        yearly_ranking_data = yearly_ranking_query.all()
+        # except Exception as e:
+        #     app.logger.error(f"Error querying ranking data for '{community}' (Year: {selected_year}, Month: {selected_month}): {e}", exc_info=True)
+        #     # Render template with empty data, but flash an error? Or show error page?
+        #     flash("Wystąpił błąd podczas pobierania danych rankingu.", "danger")
+        #     # Optionally return error template: return render_template('error.html', message="Database query error."), 500
+
+        return render_template(
+            'ranking.html', 
+            # Community context
+            selected_community=community,
+            available_communities=COMMUNITIES_TO_PROCESS,
+            # Filter context
+            selected_year=selected_year,
+            selected_month=selected_month,
+            available_years=available_years,
+            available_months=available_months, # Pass all months
+            # Data context
+            weekly_chart_labels=json.dumps(weekly_chart_labels),
+            weekly_chart_values=json.dumps(weekly_chart_values),
+            monthly_ranking=monthly_ranking_data,
+            yearly_ranking=yearly_ranking_data
+        )
+
+    except Exception as e:
+        # Catch-all for any error within the route
+        app.logger.error(f"Unhandled exception in show_rankings for community '{community}': {e}", exc_info=True)
+        # Ensure db session is closed if it was opened
+        # The 'finally' block in get_db should handle this, but double-check its implementation
+        # Render a generic error page
+        return render_template('error.html', message="Wystąpił wewnętrzny błąd serwera."), 500
+    finally:
+        # Ensure the session is closed even if errors occurred before render_template
+        # This might be redundant if get_db() uses a context manager correctly
+        if db is not None:
+            # The get_db function already handles closing in its finally block
+            # db.close() # Avoid closing it twice if get_db handles it
+            pass 
+
+@app.route('/api/chart_data/<string:community>')
+def get_chart_data(community):
+    """API endpoint to return just the chart data for AJAX requests."""
+    db = next(get_db())
+    try:
+        selected_year = request.args.get('year', default=datetime.now().year, type=int)
+        
+        # Get models for community
+        models = get_models_for_community(community)
+        WeeklySummaryModel = models['WeeklySummary']
+        
+        # Query weekly data
+        weekly_summary_query = db.query(WeeklySummaryModel).filter(
+            WeeklySummaryModel.year == selected_year
+        ).order_by(asc(WeeklySummaryModel.week_number))
+        weekly_summary_data = weekly_summary_query.all()
+        
+        # Prepare data for chart
+        weekly_chart_labels = [f"Tydzień {w.week_number}" for w in weekly_summary_data]
+        weekly_chart_values = [round(w.total_distance, 2) for w in weekly_summary_data]
+        
+        # Return the data as JSON
+        return jsonify({
+            'labels': weekly_chart_labels,
+            'values': weekly_chart_values,
+            'year': selected_year,
+            'community': community
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting chart data: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
 
 #--------------------- STRAVA ROUTES -----------------------
 @app.route('/strava_login')
@@ -620,5 +714,5 @@ def ping():
     return 'pong'
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
-    # app.run(debug=True)
+    # app.run(host='0.0.0.0')
+    app.run(debug=True)

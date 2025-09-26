@@ -2,7 +2,7 @@
 name: Deploy Sztafeta To VPS
 on:
     push:
-    pull_request:
+      branches: [ main ]
     workflow_dispatch:
 env:
     USER_PATH: /home/frog/
