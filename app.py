@@ -353,7 +353,7 @@ def process_activities():
     app.logger.debug("Total distance: " + str(total_distance))
     # czas na pobranie notatek, obrazków
     notes = request.form.get("notes")
-    str_builder += f"\n {notes} \n Wpis dodany za pomocą https://hejto.sztafetastat.eu \n {tag_community}"
+    str_builder += f"</br> {notes} </br> Wpis dodany za pomocą https://hejto.sztafetastat.eu </br> {tag_community}"
     if(community in ['ksiezycowy-spacer', 'sport', 'rozwoj']):
         str_builder = str_builder.replace('+','-')
     files = request.files.getlist('files')
